@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:ui';
 
 import 'package:flutter/material.dart';
@@ -6,16 +7,27 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import 'send_letter_screen.dart';
 import 'letter_detail_screen.dart';
 import 'unread_letter_screen.dart';
-
+import 'recent_contacts_screen.dart';
+import 'sent_letters_screen.dart';
 
 class HomeScreen extends StatefulWidget {
+  const HomeScreen({super.key});
+
   @override
   _HomeScreenState createState() => _HomeScreenState();
 }
 
 class _HomeScreenState extends State<HomeScreen> {
-  double _cardBorderRadius = 8.0;
+  final double _cardBorderRadius = 8.0;
   int _selectedIndex = 0;
+  final _dataService = DataService();
+
+    @override
+  void dispose() {
+      _dataService.dispose();
+    super.dispose();
+  }
+
 
   @override
   Widget build(BuildContext context) {
@@ -36,7 +48,7 @@ class _HomeScreenState extends State<HomeScreen> {
           BackdropFilter(
             filter: ImageFilter.blur(sigmaX: 5.0, sigmaY: 5.0),
             child: Container(
-              color: Colors.white.withOpacity(0.6),
+              color: Colors.white.withOpacity(0.8),
             ),
           ),
           ListView(
@@ -44,14 +56,14 @@ class _HomeScreenState extends State<HomeScreen> {
             children: [
               DrawerHeader(
                 decoration: BoxDecoration(
-                  color: Colors.blue.withOpacity(0.1),
+                  color: Colors.transparent,
                 ),
-                child: Text('菜单',
+                child: const Text('菜单',
                     style: TextStyle(fontSize: 24, color: Colors.black87)),
               ),
               ListTile(
-                leading: Icon(Icons.home, color: Colors.black87),
-                title: Text('主页', style: TextStyle(color: Colors.black87)),
+                leading: const Icon(Icons.home, color: Colors.black87),
+                title: const Text('主页', style: TextStyle(color: Colors.black87)),
                 selected: _selectedIndex == 0,
                 onTap: () {
                    _updateSelectedIndex(0);
@@ -59,8 +71,8 @@ class _HomeScreenState extends State<HomeScreen> {
                 },
               ),
               ListTile(
-                  leading: Icon(Icons.mail, color: Colors.black87),
-                  title: Text('写信', style: TextStyle(color: Colors.black87)),
+                  leading: const Icon(Icons.mail, color: Colors.black87),
+                  title: const Text('写信', style: TextStyle(color: Colors.black87)),
                   selected: _selectedIndex == 1,
                   onTap: () {
                     _updateSelectedIndex(1);
@@ -88,8 +100,8 @@ class _HomeScreenState extends State<HomeScreen> {
         padding: EdgeInsets.all(isMobile ? 16 : 32),
         child: Column(
           children: [
-            _buildAppBar(context),
-            SizedBox(height: 16),
+            GlobalAppBar(title: '我的应用', showBackButton: false),
+            const SizedBox(height: 16),
             Expanded(
               child: IndexedStack(
                 index: _selectedIndex,
@@ -102,25 +114,6 @@ class _HomeScreenState extends State<HomeScreen> {
         ));
   }
 
-  Widget _buildAppBar(BuildContext context) {
-    return Row(
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-        children: [
-          IconButton(
-            icon: Icon(Icons.menu, size: 30, color: Colors.black87),
-            onPressed: () => Scaffold.of(context).openDrawer(),
-          ),
-          Text(
-            '我的应用',
-            style: TextStyle(
-              fontSize: 24,
-              fontWeight: FontWeight.bold,
-              color: Colors.black87,
-            ),
-          ),
-          SizedBox(width: 48),
-        ]);
-  }
 
   Widget _buildDashboardView(BuildContext context) {
     return Column(
@@ -129,7 +122,7 @@ class _HomeScreenState extends State<HomeScreen> {
             context,
             icon: Icons.mail_outline,
             title: '未读信件',
-            valueFuture: fetchUnreadLetterCount(),
+            valueStream: _dataService.fetchUnreadLetterCountStream(),
             onTap: () {
               Navigator.push(context, MaterialPageRoute(builder: (_) => UnreadLetterScreen()));
             }
@@ -138,16 +131,16 @@ class _HomeScreenState extends State<HomeScreen> {
           context,
           icon: Icons.send_outlined,
           title: '已发送信件',
-          valueFuture: fetchSentLetterCount(),
+          valueStream: _dataService.fetchSentLetterCountStream(),
           onTap: () {
-           //跳转到已发送页面
+            Navigator.push(context, MaterialPageRoute(builder: (_) => SentLettersScreen()));
           },
         ),
          _buildDashboardCard(
           context,
           icon: Icons.edit_outlined,
           title: '发送信件',
-           valueFuture: Future.value(''),
+           valueStream: Stream.value(''),
           onTap: () {
             Navigator.push(context, MaterialPageRoute(builder: (_) => SendLetterScreen()));
           }
@@ -159,7 +152,7 @@ class _HomeScreenState extends State<HomeScreen> {
    Widget _buildContactsCard(BuildContext context) {
     return Card(
       elevation: 1,
-      margin: EdgeInsets.symmetric(vertical: 8),
+      margin: const EdgeInsets.symmetric(vertical: 8),
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(_cardBorderRadius)),
       color: Colors.grey[50],
       child: Padding(
@@ -170,21 +163,21 @@ class _HomeScreenState extends State<HomeScreen> {
                Row(
                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
-                 Text('常用联系人',
+                 const Text('常用联系人',
                    style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Colors.black87)),
                      Icon(Icons.group_outlined, size: 20, color: Colors.grey[700]),
                    ],
                ),
-               SizedBox(height: 10),
-              FutureBuilder<List<String>>(
-                future: fetchRecentContacts(),
-                  builder: (context, snapshot) {
-                      if(snapshot.connectionState == ConnectionState.waiting){
-                        return CircularProgressIndicator();
+               const SizedBox(height: 10),
+               StreamBuilder<List<String>>(
+                 stream: _dataService.fetchRecentContactsStream(),
+                 builder: (context, snapshot) {
+                    if(snapshot.connectionState == ConnectionState.waiting){
+                        return const CircularProgressIndicator();
                       }else if (snapshot.hasError){
-                         return Text('Error', style: TextStyle(color: Colors.red));
+                         return const Text('Error', style: TextStyle(color: Colors.red));
                       }else if(snapshot.hasData && snapshot.data!.isNotEmpty){
-                        return  Column(
+                          return  Column(
                            crossAxisAlignment: CrossAxisAlignment.start,
                            children: snapshot.data!.map((name) =>
                                Padding(
@@ -196,8 +189,8 @@ class _HomeScreenState extends State<HomeScreen> {
                       }else{
                          return Text('无常用联系人',  style: TextStyle(color: Colors.grey[500]));
                       }
-                 },
-              ),
+                 }
+               ),
            ],
        ),
         ),
@@ -207,11 +200,11 @@ class _HomeScreenState extends State<HomeScreen> {
   Widget _buildDashboardCard(BuildContext context,
       {required IconData icon,
       required String title,
-      required Future<dynamic> valueFuture,
+      required Stream<dynamic> valueStream,
       required VoidCallback onTap}) {
     return Card(
       elevation: 1,
-        margin: EdgeInsets.symmetric(vertical: 8),
+        margin: const EdgeInsets.symmetric(vertical: 8),
       shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(_cardBorderRadius)),
       color: Colors.grey[50],
@@ -223,25 +216,25 @@ class _HomeScreenState extends State<HomeScreen> {
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
               Icon(icon, size: 24, color: Colors.blue),
-              SizedBox(width: 12),
+              const SizedBox(width: 12),
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(title,
-                        style: TextStyle(
+                        style: const TextStyle(
                             fontSize: 16,
                             fontWeight: FontWeight.w500,
                             color: Colors.black87)),
-                    SizedBox(height: 4),
-                    FutureBuilder(
-                      future: valueFuture,
+                    const SizedBox(height: 4),
+                    StreamBuilder(
+                      stream: valueStream,
                       builder: (context, snapshot) {
                         if (snapshot.connectionState ==
                             ConnectionState.waiting) {
-                          return CircularProgressIndicator();
+                          return const CircularProgressIndicator();
                         } else if (snapshot.hasError) {
-                          return Text('Error',
+                          return const Text('Error',
                               style: TextStyle(color: Colors.red));
                         } else {
                           return Text(snapshot.data.toString(),
@@ -259,11 +252,40 @@ class _HomeScreenState extends State<HomeScreen> {
       ),
     );
   }
+}
 
-     Future<int> fetchUnreadLetterCount() async {
-      try {
+class DataService {
+    final _unreadLetterCountController = StreamController<int>.broadcast();
+   final _sentLetterCountController = StreamController<int>.broadcast();
+   final _recentContactsController = StreamController<List<String>>.broadcast();
+   
+    DataService(){
+      _loadInitialData();
+    }
+   void dispose(){
+       _unreadLetterCountController.close();
+        _sentLetterCountController.close();
+       _recentContactsController.close();
+   }
+
+    Future<void> _loadInitialData() async{
+       fetchUnreadLetterCountStream().listen((count) {
+          _unreadLetterCountController.add(count);
+       });
+         fetchSentLetterCountStream().listen((count) {
+          _sentLetterCountController.add(count);
+       });
+        fetchRecentContactsStream().listen((contacts) {
+          _recentContactsController.add(contacts);
+       });
+    }
+  Stream<int> fetchUnreadLetterCountStream() async* {
+    while (true) {
+       try {
           final prefs = await SharedPreferences.getInstance();
             final currentUserId = prefs.getString('current_user_id') ?? '';
+          
+
          final response = await Supabase.instance.client
           .from('students')
           .select('name, class_name')
@@ -276,83 +298,100 @@ class _HomeScreenState extends State<HomeScreen> {
           .select()
         .eq('receiver_name', studentData['name'])
           .eq('receiver_class', studentData['class_name']);
-         return lettersResponse.length;
+         yield lettersResponse.length;
          }on PostgrestException catch (e) {
          print('获取未读信件数量发生 Supabase 错误: ${e.message}');
-          return 0;
+          yield 0;
          }
          catch (e){
         print('获取未读信件数量发生其他错误：$e');
-            return 0;
+            yield 0;
        }
+      await Future.delayed(const Duration(seconds: 5));
+    }
   }
-    Future<int> fetchSentLetterCount() async {
-    try {
+
+    Stream<int> fetchSentLetterCountStream() async* {
+      while(true){
+           try {
         final prefs = await SharedPreferences.getInstance();
-      final currentUserId = prefs.getString('current_user_id') ?? '';
+          final currentUserId = prefs.getString('current_user_id') ?? '';
 
-    final sentLettersResponse = await Supabase.instance.client
-          .from('letters')
-          .select()
-        .eq('sender_id', currentUserId);
-         return sentLettersResponse.length;
+        final sentLettersResponse = await Supabase.instance.client
+              .from('letters')
+              .select()
+          .eq('sender_id', currentUserId);
+           yield sentLettersResponse.length;
 
-    }  on PostgrestException catch (e){
-         print('获取已发送信件数量发生 Supabase 错误: ${e.message}');
-       return 0;
-     } catch (e){
-         print('获取已发送信件数量发生其他错误：$e');
-         return 0;
-    }
+        }  on PostgrestException catch (e){
+             print('获取已发送信件数量发生 Supabase 错误: ${e.message}');
+          yield 0;
+        } catch (e){
+             print('获取已发送信件数量发生其他错误：$e');
+           yield 0;
+        }
+        await Future.delayed(const Duration(seconds: 5));
+      }
   }
 
-  Future<List<String>> fetchRecentContacts() async {
-    try {
-      final prefs = await SharedPreferences.getInstance();
-      final currentUserId = prefs.getString('current_user_id') ?? '';
+   Stream<List<String>> fetchRecentContactsStream() async* {
+     while(true){
+          try {
+        final prefs = await SharedPreferences.getInstance();
+        final currentUserId = prefs.getString('current_user_id') ?? '';
 
-      final response = await Supabase.instance.client
-          .from('letters')
-          .select('receiver_name')
-          .eq('sender_id', currentUserId)
-          .limit(5);
+        final response = await Supabase.instance.client
+            .from('letters')
+            .select('receiver_name')
+            .eq('sender_id', currentUserId)
+            .limit(5);
 
-      List<String> names =
-          response.map((e) => e['receiver_name'].toString()).toList();
-      return names;
-    } on PostgrestException catch (e) {
-      print('获取常用联系人发生 Supabase 错误: ${e.message}');
-      return [];
-    } catch (e) {
-      print('获取常用联系人发生其他错误：$e');
-      return [];
-    }
+        List<String> names =
+             response.map((e) => e['receiver_name'].toString()).toList().toSet().toList();
+        yield names;
+      } on PostgrestException catch (e) {
+        print('获取常用联系人发生 Supabase 错误: ${e.message}');
+        yield [];
+      } catch (e) {
+        print('获取常用联系人发生其他错误：$e');
+        yield [];
+      }
+       await Future.delayed(const Duration(seconds: 5));
+     }
   }
 }
-Future<List<Map<String, dynamic>>> fetchLetters() async {
-  try {
-    final prefs = await SharedPreferences.getInstance();
-    final currentUserId = prefs.getString('current_user_id') ?? '';
 
-    final response = await Supabase.instance.client
-        .from('students')
-        .select('name, class_name')
-        .eq('student_id', currentUserId)
-        .single();
+class GlobalAppBar extends StatelessWidget implements PreferredSizeWidget {
+  final String title;
+  final bool showBackButton;
+  const GlobalAppBar({super.key, required this.title, this.showBackButton = false});
 
-    final studentData = response;
-
-    final lettersResponse = await Supabase.instance.client
-        .from('letters')
-        .select()
-        .eq('receiver_name', studentData['name'])
-        .eq('receiver_class', studentData['class_name']);
-    return lettersResponse;
-  } on PostgrestException catch (e) {
-    print('获取信件数据发生 Supabase 错误: ${e.message}');
-    return [];
-  } catch (e) {
-    print('获取信件数据发生其他错误：$e');
-    return [];
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+      children: [
+         showBackButton ? IconButton(
+          icon: const Icon(Icons.arrow_back, size: 30, color: Colors.black87),
+          onPressed: () => Navigator.pop(context),
+        ) : IconButton(
+          icon: const Icon(Icons.menu, size: 30, color: Colors.black87),
+          onPressed: () => Scaffold.of(context).openDrawer(),
+        ),
+        Text(
+          title,
+          style: const TextStyle(
+            fontSize: 24,
+            fontWeight: FontWeight.bold,
+            color: Colors.black87,
+          ),
+        ),
+        const SizedBox(width: 48),
+      ],
+    );
   }
+  
+    @override
+  Size get preferredSize => const Size.fromHeight(kToolbarHeight);
+
 }

@@ -1,10 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import 'home_screen.dart';
 
 class LetterDetailScreen extends StatefulWidget {
   final int letterId;
-  LetterDetailScreen({required this.letterId});
+  LetterDetailScreen({required this.letterId, required Map<String, dynamic> letter});
   @override
   _LetterDetailScreenState createState() => _LetterDetailScreenState();
 }
@@ -39,13 +40,10 @@ class _LetterDetailScreenState extends State<LetterDetailScreen> {
   Widget build(BuildContext context) {
     final isMobile = MediaQuery.of(context).size.width < 600;
      return Scaffold(
-      appBar: AppBar(
-            title: Text('信件详情', style: TextStyle(color: Colors.black87)),
-             backgroundColor: Colors.white,
-             iconTheme: IconThemeData(color: Colors.black87),
-             elevation: 1,
-           ),
-      backgroundColor: Colors.white, 
+      backgroundColor: Colors.white,
+       appBar:  PreferredSize(
+            preferredSize: const Size.fromHeight(kToolbarHeight),
+            child: GlobalAppBar(title: '信件详情', showBackButton: true)),
       body: FutureBuilder<Map<String, dynamic>?>(
         future: _letterFuture,
          builder: (context, snapshot) {
@@ -69,7 +67,7 @@ class _LetterDetailScreenState extends State<LetterDetailScreen> {
                                       style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: Colors.black87),
                                    ),
                                      Text(
-                                      letter['created_at'] == null ? '未知时间' :  '${DateFormat('yyyy-MM-dd HH:mm').format(DateTime.parse(letter['created_at']))}',
+                                       letter['send_time'] == null ? '未知时间' :  '${DateFormat('yyyy-MM-dd HH:mm').format(DateTime.parse(letter['send_time']))}',
                                  style: TextStyle(fontSize: 14, color: Colors.grey[700]),
                              ),
                               ],

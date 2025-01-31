@@ -20,7 +20,16 @@ class MyApp extends StatelessWidget {
     return MaterialApp(
       title: '情归纸笔',
       theme: ThemeData(
-        primarySwatch: Colors.blue,
+          colorScheme: ColorScheme.fromSwatch(primarySwatch: Colors.blue).copyWith(
+           primary: Colors.blue,
+          onPrimary: Colors.white,
+        ),
+        appBarTheme: const AppBarTheme(
+          backgroundColor: Colors.white, 
+          titleTextStyle: TextStyle(color: Colors.black87), 
+          iconTheme: IconThemeData(color: Colors.black87), 
+          elevation: 1, 
+        ),
       ),
       home: LoginScreen(),
     );
