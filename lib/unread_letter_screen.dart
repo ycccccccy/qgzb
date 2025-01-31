@@ -4,6 +4,8 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'letter_detail_screen.dart';
 import 'home_screen.dart';
+import 'settings_screen.dart';
+import 'global_appbar.dart';
 
 class UnreadLetterScreen extends StatefulWidget {
   @override
@@ -12,88 +14,76 @@ class UnreadLetterScreen extends StatefulWidget {
 
 class _UnreadLetterScreenState extends State<UnreadLetterScreen> {
   late Future<List<Map<String, dynamic>>> _lettersFuture;
-   bool _allowAnonymous = false;
-  
+  bool _allowAnonymous = false;
+
   @override
   void initState() {
     super.initState();
-     _loadAnonymousSetting();
+    _loadAnonymousSetting();
     _lettersFuture = fetchUnreadLetters();
   }
+
   Future<void> _loadAnonymousSetting() async {
     final prefs = await SharedPreferences.getInstance();
-   setState(() {
+    setState(() {
       _allowAnonymous = prefs.getBool('allow_anonymous') ?? false;
     });
   }
-  Future<void> _updateAnonymousSetting(bool value) async {
-     setState(() {
-        _allowAnonymous = value;
-      });
-    _syncAnonymousSetting(value);
-    Future.delayed(Duration(milliseconds: 100), (){
-          setState(() {
-             _lettersFuture = fetchUnreadLetters();
-          });
-    });
-  }
-    Future<void> _syncAnonymousSetting(bool value) async {
-    final prefs = await SharedPreferences.getInstance();
-    final currentUserId = prefs.getString('current_user_id') ?? '';
-     try{
-     await Supabase.instance.client
-          .from('students')
-          .update({
-        'allow_anonymous': value,
-      })
-          .eq('student_id', currentUserId);
-   await prefs.setBool('allow_anonymous', value);
 
-      }on PostgrestException catch (e) {
-         print('更新匿名信设置发生 Supabase 错误: ${e.message}');
-        ScaffoldMessenger.of(context)
-          .showSnackBar(SnackBar(content: Text('更新失败，请稍后重试')));
-          setState(() {
-            _allowAnonymous = !value;
-          });
-      }catch(e){
-          print('更新匿名信设置发生其他错误：$e');
-          ScaffoldMessenger.of(context)
-            .showSnackBar(SnackBar(content: Text('更新失败，请稍后重试')));
-             setState(() {
-            _allowAnonymous = !value;
-          });
-      }
-  }
-
+  Future<void> _updateAnonymousSetting(bool value) async {}
 
   Future<List<Map<String, dynamic>>> fetchUnreadLetters() async {
-   try {
+    try {
       final prefs = await SharedPreferences.getInstance();
       final currentUserId = prefs.getString('current_user_id') ?? '';
-        
-        final response = await Supabase.instance.client
+
+      final response = await Supabase.instance.client
           .from('students')
-          .select('name, class_name, allow_anonymous')
+          .select('name, class_name, allow_anonymous,school')
           .eq('student_id', currentUserId)
           .single();
 
       final studentData = response;
-       final allowAnonymous = studentData['allow_anonymous'] ?? false;
+      final allowAnonymous = studentData['allow_anonymous'] ?? false;
       print('Current User ID: $currentUserId');
 
       final query = Supabase.instance.client
           .from('letters')
           .select()
-          .eq('receiver_name', studentData['name'])
-          .eq('receiver_class', studentData['class_name']);
-         final  lettersResponse = await query;
+          .or('and(receiver_name.eq.${studentData['name']},my_school.eq.${studentData['school']}),and(receiver_name.eq.${studentData['name']},target_school.eq.${studentData['school']})');
 
-       if(!allowAnonymous){
-         return lettersResponse.where((letter) => letter['is_anonymous'] == false || letter['is_anonymous'] == null).toList();
-       }else{
-          return lettersResponse;
-       }
+      final lettersResponse = await query;
+      print('原始信件数据 (lettersResponse): $lettersResponse');
+
+      final myClass = studentData['class_name'];
+      List<Map<String, dynamic>> filteredLetters;
+      if (!allowAnonymous) {
+        filteredLetters = lettersResponse
+            .where((letter) => (letter['is_anonymous'] == false || letter['is_anonymous'] == null) &&
+                (letter['receiver_class'] == myClass || letter['receiver_class'] == null))
+            .toList();
+      } else {
+        filteredLetters = lettersResponse
+            .where((letter) => (letter['receiver_class'] == myClass || letter['receiver_class'] == null))
+            .toList();
+      }
+        print('过滤后的信件数据 (filteredLetters): $filteredLetters');
+      // 获取发件人姓名
+      List<Map<String, dynamic>> lettersWithSenderNames = [];
+      for (var letter in filteredLetters) {
+        final senderId = letter['sender_id'];
+        final studentResponse = await Supabase.instance.client
+            .from('students')
+            .select('name')
+            .eq('student_id', senderId)
+            .maybeSingle();
+
+        final senderName = studentResponse?['name'] as String?;
+        lettersWithSenderNames.add({...letter, 'sender_name': senderName});
+         print('信件ID: ${letter['id']}, 发件人ID: $senderId, 发件人姓名: $senderName');
+      }
+       print('最终信件数据 (lettersWithSenderNames): $lettersWithSenderNames');
+      return lettersWithSenderNames;
 
     } on PostgrestException catch (e) {
       print('获取信件数据发生 Supabase 错误: ${e.message}');
@@ -108,45 +98,27 @@ class _UnreadLetterScreenState extends State<UnreadLetterScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: Colors.white,
-       appBar:  PreferredSize(
-            preferredSize: const Size.fromHeight(kToolbarHeight),
-            child: GlobalAppBar(title: '未读信件', showBackButton: true)),
-      body: Column(
-        children: [
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                Text('接收匿名信件', style: TextStyle(fontSize: 16, color: Colors.black87)),
-                Switch(
-                  value: _allowAnonymous,
-                  onChanged: (value) {
-                    _updateAnonymousSetting(value);
-                  },
-                ),
-              ],
-            ),
-          ),
-           Expanded(
-             child: FutureBuilder<List<Map<String, dynamic>>>(
+      appBar: PreferredSize(
+          preferredSize: const Size.fromHeight(kToolbarHeight),
+          child: GlobalAppBar(title: '未读信件', showBackButton: true)),
+      body: FutureBuilder<List<Map<String, dynamic>>>(
         future: _lettersFuture,
         builder: (context, snapshot) {
           if (snapshot.connectionState == ConnectionState.waiting) {
             print('Loading...');
             return Center(child: CircularProgressIndicator());
           } else if (snapshot.hasError) {
-             print('Error: ${snapshot.error}');
+            print('Error: ${snapshot.error}');
             return Center(
                 child: Text('Error: ${snapshot.error}',
                     style: TextStyle(color: Colors.red)));
           } else if (!snapshot.hasData || snapshot.data!.isEmpty) {
-             print('No data');
+            print('No data');
             return Center(
                 child: Text('没有未读信件',
                     style: TextStyle(color: Colors.grey[500])));
           } else {
-              print('Data received: ${snapshot.data}');
+            print('Data received: ${snapshot.data}');
             return ListView.separated(
               padding: EdgeInsets.all(16.0),
               itemCount: snapshot.data!.length,
@@ -159,59 +131,74 @@ class _UnreadLetterScreenState extends State<UnreadLetterScreen> {
           }
         },
       ),
-           ),
-        ],
-      ),
     );
   }
 
-  Widget _buildLetterCard(BuildContext context, Map<String, dynamic> letter) {
-        final isMobile = MediaQuery.of(context).size.width < 600;
-         final senderId = letter['sender_id']?.toString() ?? '未知发件人';
-        final sendTime = letter['send_time'] == null ? '未知时间' :  DateFormat('yyyy-MM-dd HH:mm').format(DateTime.parse(letter['send_time']));
-        return Card(
-          elevation: 1,
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(8),
-          ),
-           color: Colors.grey[50],
-        child: InkWell(
-            onTap: () {
-              Navigator.push(
-                context,
-                MaterialPageRoute(
-                builder: (_) => LetterDetailScreen(letter: letter, letterId: letter['id'])),
-             );
-             },
-           child: Padding(
-             padding: const EdgeInsets.all(16.0),
-              child: Row(
-                 children: [
-                     const Icon(Icons.mail_outline, size: 30, color: Colors.blue),
-                         const SizedBox(width: 12),
-                     Expanded(
-                       child: Column(
-                         crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(senderId,
-                              style: const TextStyle(
-                                fontSize: 16,
-                                fontWeight: FontWeight.w500,
-                                 color: Colors.black87)),
-                                 const SizedBox(height: 4),
-                                Text(
-                                   sendTime,
-                                    style: TextStyle(fontSize: 14, color: Colors.grey[700]),
-                                ),
-                         ],
-                       ),
-                     ),
-                    if (!isMobile)
-                     Icon(Icons.arrow_forward_ios, size: 16, color: Colors.grey[400]),
-                   ],
-               ),
-             ),
-           ),
-      );
+  String _formatTime(String? time) {
+    if (time == null) {
+      return '未知时间';
     }
+    DateTime? dateTime = DateTime.tryParse(time);
+    if (dateTime == null) {
+      return '未知时间';
+    }
+    try {
+      return DateFormat('yyyy-MM-dd HH:mm').format(dateTime); // 删除 toLocal()
+    } catch (e) {
+      return '未知时间';
+    }
+  }
+
+  Widget _buildLetterCard(BuildContext context, Map<String, dynamic> letter) {
+    final isMobile = MediaQuery.of(context).size.width < 600;
+    final senderName = letter['sender_name']?.toString() ?? '未知发件人';
+    final sendTime = letter['send_time'] == null
+        ? '未知时间'
+        : _formatTime(letter['send_time']);
+    return Card(
+      elevation: 1,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(8),
+      ),
+      color: Colors.grey[50],
+      child: InkWell(
+        onTap: () {
+          Navigator.push(
+            context,
+            MaterialPageRoute(
+                builder: (_) => LetterDetailScreen(
+                    letter: letter, letterId: letter['id'])),
+          );
+        },
+        child: Padding(
+          padding: const EdgeInsets.all(16.0),
+          child: Row(
+            children: [
+              const Icon(Icons.mail_outline, size: 30, color: Colors.blue),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(senderName,
+                        style: const TextStyle(
+                            fontSize: 16,
+                            fontWeight: FontWeight.w500,
+                            color: Colors.black87)),
+                    const SizedBox(height: 4),
+                    Text(
+                      sendTime,
+                      style: TextStyle(fontSize: 14, color: Colors.grey[700]),
+                    ),
+                  ],
+                ),
+              ),
+              if (!isMobile)
+                Icon(Icons.arrow_forward_ios, size: 16, color: Colors.grey[400]),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
 }

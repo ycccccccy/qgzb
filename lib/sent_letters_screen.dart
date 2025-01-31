@@ -4,6 +4,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'home_screen.dart';
 import 'letter_detail_screen.dart';
 import 'package:intl/intl.dart';
+import 'global_appbar.dart';
 
 class SentLettersScreen extends StatefulWidget {
   const SentLettersScreen({super.key});

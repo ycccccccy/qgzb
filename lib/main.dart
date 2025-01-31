@@ -18,7 +18,7 @@ class MyApp extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-      title: '情归纸笔',
+      title: '鸿雁心笺',
       theme: ThemeData(
           colorScheme: ColorScheme.fromSwatch(primarySwatch: Colors.blue).copyWith(
            primary: Colors.blue,

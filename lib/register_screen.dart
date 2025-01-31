@@ -1,42 +1,30 @@
-import 'dart:convert';
-import 'dart:math';
-
-import 'package:crypto/crypto.dart';
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
-import 'package:shared_preferences/shared_preferences.dart';
-import 'home_screen.dart';
-import 'simple_captcha.dart';
-import 'register_screen.dart';
+import 'package:crypto/crypto.dart';
+import 'dart:convert';
+import 'dart:math';
+import 'login_screen.dart';
 import 'package:flutter/services.dart';
 import 'school_data.dart';
 
-class LoginScreen extends StatefulWidget {
+class RegisterScreen extends StatefulWidget {
   @override
-  _LoginScreenState createState() => _LoginScreenState();
+  _RegisterScreenState createState() => _RegisterScreenState();
 }
 
-class _LoginScreenState extends State<LoginScreen> {
+class _RegisterScreenState extends State<RegisterScreen> {
   final _formKey = GlobalKey<FormState>();
   final TextEditingController _studentIdController = TextEditingController();
   final TextEditingController _nameController = TextEditingController();
   final TextEditingController _passwordController = TextEditingController();
   bool _passwordVisible = false;
   bool _isLoading = false;
-  bool _rememberMe = false;
-  bool _autoLogin = false;
   String? _selectedGrade;
   int? _selectedClass;
   String? _selectedClassName;
    String? _selectedDistrict;
   String? _selectedSchool;
 
-  @override
-  void initState() {
-    super.initState();
-    _loadRememberMe();
-    _attemptAutoLogin();
-  }
 
   @override
   void dispose() {
@@ -58,149 +46,51 @@ class _LoginScreenState extends State<LoginScreen> {
     }
   }
 
-  Future<void> _loadRememberMe() async {
-    final prefs = await SharedPreferences.getInstance();
-    setState(() {
-      _rememberMe = prefs.getBool('rememberMe') ?? false;
-      _autoLogin = prefs.getBool('autoLogin') ?? false;
-      if (_rememberMe || _autoLogin) {
-        _studentIdController.text = prefs.getString('rememberedId') ?? '';
-        _nameController.text = prefs.getString('rememberedName') ?? '';
-        if (_autoLogin) {
-          _passwordController.text = prefs.getString('rememberedPassword') ?? '';
-        }
-      }
-    });
-  }
-
-  Future<void> _saveRememberMe() async {
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setBool('rememberMe', _rememberMe);
-    await prefs.setBool('autoLogin', _autoLogin);
-    if(_rememberMe || _autoLogin){
-      await prefs.setString('rememberedId', _studentIdController.text);
-      await prefs.setString('rememberedName', _nameController.text);
-      if (_autoLogin) {
-        await prefs.setString('rememberedPassword',_passwordController.text);
-      }else{
-        await prefs.remove('rememberedPassword');
-      }
-    }else{
-      await prefs.remove('rememberedId');
-      await prefs.remove('rememberedName');
-      await prefs.remove('rememberedPassword');
-    }
-  }
-
-  void _onCaptchaCompleted(String value) {}
-
-  Future<void> _attemptAutoLogin() async {
-    final prefs = await SharedPreferences.getInstance();
-    final bool autoLogin = prefs.getBool('autoLogin') ?? false;
-    final String? rememberedId = prefs.getString('rememberedId');
-    final String? rememberedName = prefs.getString('rememberedName');
-    final String? rememberedPassword = prefs.getString('rememberedPassword');
-
-    if (autoLogin && rememberedId != null && rememberedName != null &&
-        rememberedPassword != null) {
-      setState(() => _isLoading = true);
-      try {
-        final isValid = await _verifyStudent(
-            studentId: rememberedId,
-            name: rememberedName,
-            className: _selectedClassName ?? '',
-            password: rememberedPassword,
-          school: _selectedSchool ?? '',
-        );
-
-        if (isValid) {
-          await prefs.setString('current_user_id', rememberedId);
-          Navigator.pushReplacement(
-              context, MaterialPageRoute(builder: (_) => HomeScreen()));
-        } else {
-          setState(() => _isLoading = false);
-        }
-      } catch (e) {
-        setState(() => _isLoading = false);
-        print('Error during auto login: $e');
-        _showErrorSnackBar('自动登录失败，请重试');
-      }
-    }
-  }
-
-  Future<void> _handleLogin() async {
+  Future<void> _handleRegister() async {
     if (!_formKey.currentState!.validate()) {
       return;
     }
     setState(() => _isLoading = true);
     try {
-      final result = await _showCaptchaDialog();
-      if (result == null) {
-        setState(() => _isLoading = false);
-        return;
-      }
       final studentId = _studentIdController.text.trim();
       final name = _nameController.text.trim();
       final password = _passwordController.text;
-       final school = _selectedSchool;
+      final school = _selectedSchool;
 
 
-      final isValid = await _verifyStudent(
+      final isSuccess = await _registerStudent(
         studentId: studentId,
         name: name,
         className: _selectedClassName!,
         password: password,
-          school: school ?? '',
+        school: school ?? '',
       );
-      if (isValid) {
-        await _saveRememberMe();
-        final prefs = await SharedPreferences.getInstance();
-        await prefs.setString('current_user_id', studentId);
+      if (isSuccess) {
+        _showSuccessSnackBar('注册成功，请登录');
         Navigator.pushReplacement(
-            context, MaterialPageRoute(builder: (_) => HomeScreen()));
+          context,
+          MaterialPageRoute(builder: (context) => LoginScreen()),
+        );
       } else {
-        _showErrorSnackBar('学号/姓名/班级或密码或学校错误');
+        _showErrorSnackBar('注册失败，请重试');
       }
     } catch (e) {
-      String errorMessage = '登录失败，请重试';
-      if (e is PostgrestException) {
-        if (e.code == '23505') {
-          errorMessage = '该用户不存在';
-        } else {
-          errorMessage = '数据库错误，请稍后重试';
-        }
-      } else {
-        print('Error during login: $e');
-      }
+       String errorMessage = '注册失败，请重试';
+        if (e is PostgrestException) {
+           if(e.code == '23505'){
+             errorMessage = '该用户已注册';
+           }else{
+             errorMessage = '数据库错误，请稍后重试';
+           }
+         }else{
+            print('Error during registration: $e');
+         }
       _showErrorSnackBar(errorMessage);
     } finally {
       setState(() => _isLoading = false);
     }
   }
 
-
-  Future<String?> _showCaptchaDialog() async {
-    return showDialog<String>(
-      context: context,
-      barrierDismissible: false,
-      builder: (context) {
-        return AlertDialog(
-          backgroundColor: Colors.grey[50],
-          title: Text('验证码验证',
-              textAlign: TextAlign.center,
-              style: TextStyle(color: Colors.black87)),
-          shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(10)),
-          content: SimpleCaptcha(
-            onCompleted: (value) {
-              Navigator.of(context).pop(value);
-            },
-            isDialog: true,
-          ),
-        );
-      },
-    );
-  }
 
   void _showErrorSnackBar(String message) {
     ScaffoldMessenger.of(context).showSnackBar(
@@ -210,6 +100,16 @@ class _LoginScreenState extends State<LoginScreen> {
       ),
     );
   }
+
+  void _showSuccessSnackBar(String message) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(message),
+        backgroundColor: Colors.green,
+      ),
+    );
+  }
+
 
   @override
   Widget build(BuildContext context) {
@@ -235,7 +135,7 @@ class _LoginScreenState extends State<LoginScreen> {
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
                     Text(
-                      '欢迎登录',
+                      '注册',
                       style: TextStyle(
                           fontSize: 24,
                           fontWeight: FontWeight.bold,
@@ -248,10 +148,10 @@ class _LoginScreenState extends State<LoginScreen> {
                         labelText: '学号',
                         hintText: '请输入你的学号',
                         prefixIcon: Icons.school,
-                        keyboardType: TextInputType.number,
-                        inputFormatters: <TextInputFormatter>[
-                          FilteringTextInputFormatter.digitsOnly
-                        ],
+                       keyboardType: TextInputType.number,
+                         inputFormatters: <TextInputFormatter>[
+                           FilteringTextInputFormatter.digitsOnly
+                         ],
                         validator: (value) {
                           if (value == null || value.isEmpty) {
                             return '学号不能为空';
@@ -270,7 +170,7 @@ class _LoginScreenState extends State<LoginScreen> {
                           }
                           return null;
                         }),
-                     SizedBox(height: 16),
+                       SizedBox(height: 16),
                       DropdownButtonFormField<String>(
                        decoration: InputDecoration(
                           labelText: '区',
@@ -332,20 +232,20 @@ class _LoginScreenState extends State<LoginScreen> {
                        },
                      ),
                     SizedBox(height: 16),
-                    Row(
+                     Row(
                       children: [
                         Expanded(
                           child: DropdownButtonFormField<String>(
                             decoration: InputDecoration(
                               labelText: '年级',
                               hintText: '请选择年级',
-                              filled: true,
-                              fillColor: Colors.white,
-                              border: OutlineInputBorder(
-                                borderRadius: BorderRadius.circular(8),
-                                borderSide: BorderSide.none,
-                              ),
-                            ),
+                               filled: true,
+                                fillColor: Colors.white,
+                               border: OutlineInputBorder(
+                                  borderRadius: BorderRadius.circular(8),
+                                    borderSide: BorderSide.none,
+                                ),
+                             ),
                             value: _selectedGrade,
                             items: [
                               '初一',
@@ -356,13 +256,13 @@ class _LoginScreenState extends State<LoginScreen> {
                               '高三',
                             ]
                                 .map((grade) => DropdownMenuItem(
-                              value: grade,
-                              child: Text(grade),
-                            ))
+                                      value: grade,
+                                      child: Text(grade),
+                                    ))
                                 .toList(),
                             onChanged: (value) {
                               _selectedGrade = value;
-                              _updateClassValue();
+                               _updateClassValue();
                             },
                             validator: (value) {
                               if (value == null || value.isEmpty) {
@@ -376,27 +276,27 @@ class _LoginScreenState extends State<LoginScreen> {
                         Expanded(
                           child: DropdownButtonFormField<int>(
                             decoration: InputDecoration(
-                              labelText: '班级',
+                               labelText: '班级',
                               hintText: '请选择班级',
-                              filled: true,
-                              fillColor: Colors.white,
+                               filled: true,
+                                fillColor: Colors.white,
                               border: OutlineInputBorder(
-                                borderRadius: BorderRadius.circular(8),
-                                borderSide: BorderSide.none,
-                              ),
-                            ),
+                                  borderRadius: BorderRadius.circular(8),
+                                    borderSide: BorderSide.none,
+                                ),
+                             ),
                             value: _selectedClass,
                             items: List.generate(13, (index) => index + 1)
                                 .map((classNum) => DropdownMenuItem(
-                              value: classNum,
-                              child: Text('$classNum班'),
-                            ))
+                                      value: classNum,
+                                      child: Text('$classNum班'),
+                                    ))
                                 .toList(),
                             onChanged: (value) {
                               _selectedClass = value;
-                              _updateClassValue();
+                             _updateClassValue();
                             },
-                            validator: (value) {
+                             validator: (value) {
                               if (value == null) {
                                 return '请选择班级';
                               }
@@ -432,45 +332,9 @@ class _LoginScreenState extends State<LoginScreen> {
                           }
                           return null;
                         }),
-                    SizedBox(height: 8),
-                    Row(
-                      children: [
-                        Checkbox(
-                          value: _rememberMe,
-                          onChanged: (value) {
-                            setState(() {
-                              _rememberMe = value!;
-                              if (!_rememberMe) {
-                                _autoLogin = false;
-                              }
-                            });
-                          },
-                        ),
-                        Text(
-                          '记住我',
-                          style: TextStyle(color: Colors.grey[600]),
-                        ),
-                        SizedBox(width: 16),
-                        Checkbox(
-                          value: _autoLogin,
-                          onChanged: (value) {
-                            setState(() {
-                              _autoLogin = value!;
-                              if (_autoLogin) {
-                                _rememberMe = true;
-                              }
-                            });
-                          },
-                        ),
-                        Text(
-                          '自动登录',
-                          style: TextStyle(color: Colors.grey[600]),
-                        ),
-                      ],
-                    ),
-                    SizedBox(height: 16),
+                    SizedBox(height: 24),
                     ElevatedButton(
-                      onPressed: _isLoading ? null : _handleLogin,
+                      onPressed: _isLoading ? null : _handleRegister,
                       style: ElevatedButton.styleFrom(
                         backgroundColor: Colors.blue,
                         padding: EdgeInsets.symmetric(vertical: 14),
@@ -479,23 +343,16 @@ class _LoginScreenState extends State<LoginScreen> {
                       ),
                       child: _isLoading
                           ? CircularProgressIndicator(color: Colors.white)
-                          : Text('登录',
+                          : Text('注册',
                           style:
                           TextStyle(fontSize: 18, color: Colors.white)),
                     ),
                     SizedBox(height: 10),
                     TextButton(
                       onPressed: () {
-                        Navigator.push(
-                          context,
-                          MaterialPageRoute(
-                              builder: (context) => RegisterScreen()),
-                        );
+                        Navigator.pop(context);
                       },
-                      child: Text(
-                        '没有账号？去注册',
-                        style: TextStyle(color: Colors.blueGrey),
-                      ),
+                      child: Text('已有账号？去登录',style: TextStyle(color: Colors.blueGrey),),
                     ),
                   ],
                 ),
@@ -512,7 +369,7 @@ class _LoginScreenState extends State<LoginScreen> {
     required String labelText,
     required String hintText,
     IconData? prefixIcon,
-    TextInputType? keyboardType,
+     TextInputType? keyboardType,
     List<TextInputFormatter>? inputFormatters,
     bool obscureText = false,
     IconButton? suffixIcon,
@@ -522,7 +379,7 @@ class _LoginScreenState extends State<LoginScreen> {
       controller: controller,
       obscureText: obscureText,
       keyboardType: keyboardType,
-      inputFormatters: inputFormatters,
+       inputFormatters: inputFormatters,
       decoration: InputDecoration(
         labelText: labelText,
         hintText: hintText,
@@ -538,8 +395,7 @@ class _LoginScreenState extends State<LoginScreen> {
       validator: validator,
     );
   }
-
-  String _generateSalt() {
+   String _generateSalt() {
     final random = Random.secure();
     final saltBytes = List<int>.generate(16, (_) => random.nextInt(256));
     return base64Encode(saltBytes);
@@ -551,45 +407,31 @@ class _LoginScreenState extends State<LoginScreen> {
     return digest.toString();
   }
 
-  Future<bool> _verifyStudent({
+   Future<bool> _registerStudent({
     required String studentId,
     required String name,
     required String className,
     required String password,
-       required String school,
+    required String school
   }) async {
+    final salt = _generateSalt();
+    final passwordHash = _generateHash(password, salt);
     try {
-      final studentData = await _fetchStudentData(studentId, name,school);
-      if (studentData == null) {
-        return false;
-      }
-      return _handleNormalLogin(password, studentData);
+      await Supabase.instance.client
+          .from('students')
+          .insert({
+        'student_id': studentId,
+        'name': name,
+        'class_name': className,
+        'password_hash': passwordHash,
+        'salt': salt,
+        'school': school,
+      });
+      return true;
     } catch (e) {
-      print('Error during verifyStudent: $e');
+      print('Error during registration: $e');
       return false;
     }
   }
 
-    Future<Map<String, dynamic>?> _fetchStudentData(
-      String studentId, String name,String school) async {
-    final query = Supabase.instance.client
-        .from('students')
-        .select()
-        .eq('student_id', studentId)
-        .eq('name', name)
-         .eq('school', school);
-    final response = await query;
-    if (response.isEmpty) {
-      return null;
-    }
-    return response[0];
-  }
-
-  Future<bool> _handleNormalLogin(
-      String password, Map<String, dynamic> studentData) async {
-    final storedHash = studentData['password_hash'];
-    final salt = studentData['salt'];
-    final inputHash = _generateHash(password, salt);
-    return inputHash == storedHash;
-  }
 }

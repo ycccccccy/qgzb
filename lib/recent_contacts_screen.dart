@@ -3,6 +3,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'home_screen.dart';
 import 'contact_detail_screen.dart';
+import 'global_appbar.dart';
 
 class RecentContactsScreen extends StatefulWidget {
   const RecentContactsScreen({super.key});

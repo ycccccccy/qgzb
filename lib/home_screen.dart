@@ -1,6 +1,5 @@
 import 'dart:async';
 import 'dart:ui';
-
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
@@ -9,6 +8,8 @@ import 'letter_detail_screen.dart';
 import 'unread_letter_screen.dart';
 import 'recent_contacts_screen.dart';
 import 'sent_letters_screen.dart';
+import 'settings_screen.dart';
+import 'global_appbar.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -77,8 +78,20 @@ class _HomeScreenState extends State<HomeScreen> {
                   onTap: () {
                     _updateSelectedIndex(1);
                     Navigator.pop(context);
-                    Navigator.push(context,
-                        MaterialPageRoute(builder: (_) => SendLetterScreen()));
+                      Navigator.of(context).push(
+                        MaterialPageRoute(builder: (_) => SendLetterScreen())
+                    );
+                  }),
+                   ListTile(
+                  leading: const Icon(Icons.settings, color: Colors.black87),
+                  title: const Text('设置', style: TextStyle(color: Colors.black87)),
+                  selected: _selectedIndex == 2,
+                  onTap: () {
+                    _updateSelectedIndex(2);
+                    Navigator.pop(context);
+                    Navigator.of(context).push(
+                        MaterialPageRoute(builder: (_) => SettingsScreen())
+                    );
                   }),
             ],
           )
@@ -103,12 +116,9 @@ class _HomeScreenState extends State<HomeScreen> {
             GlobalAppBar(title: '我的应用', showBackButton: false),
             const SizedBox(height: 16),
             Expanded(
-              child: IndexedStack(
-                index: _selectedIndex,
-                children: [
-                  _buildDashboardView(context),
-                ],
-              ),
+              child: _selectedIndex == 0
+                  ? _buildDashboardView(context)
+                  : _selectedIndex == 1 ? Container() : _selectedIndex == 2 ? Container() : Container(),
             ),
           ],
         ));
@@ -258,16 +268,15 @@ class DataService {
     final _unreadLetterCountController = StreamController<int>.broadcast();
    final _sentLetterCountController = StreamController<int>.broadcast();
    final _recentContactsController = StreamController<List<String>>.broadcast();
-   
     DataService(){
       _loadInitialData();
     }
+
    void dispose(){
        _unreadLetterCountController.close();
         _sentLetterCountController.close();
        _recentContactsController.close();
    }
-
     Future<void> _loadInitialData() async{
        fetchUnreadLetterCountStream().listen((count) {
           _unreadLetterCountController.add(count);
@@ -284,21 +293,35 @@ class DataService {
        try {
           final prefs = await SharedPreferences.getInstance();
             final currentUserId = prefs.getString('current_user_id') ?? '';
-          
-
          final response = await Supabase.instance.client
           .from('students')
-          .select('name, class_name')
+          .select('name, class_name, allow_anonymous,school')
           .eq('student_id', currentUserId)
           .single();
 
-       final studentData = response;
-        final lettersResponse = await Supabase.instance.client
-          .from('letters')
-          .select()
-        .eq('receiver_name', studentData['name'])
-          .eq('receiver_class', studentData['class_name']);
-         yield lettersResponse.length;
+        final studentData = response;
+         final allowAnonymous = studentData['allow_anonymous'] ?? false;
+
+        final query = Supabase.instance.client
+            .from('letters')
+            .select()
+             .or('and(receiver_name.eq.${studentData['name']},my_school.eq.${studentData['school']}),and(receiver_name.eq.${studentData['name']},target_school.eq.${studentData['school']})');
+
+      final lettersResponse = await query;
+      final myClass = studentData['class_name'];
+        final List<Map<String, dynamic>> filteredLetters;
+      if (!allowAnonymous) {
+        filteredLetters =  lettersResponse
+            .where((letter) =>
+        (letter['is_anonymous'] == false || letter['is_anonymous'] == null) &&
+              (letter['receiver_class'] == myClass || letter['receiver_class'] == null ))
+            .toList();
+      } else {
+           filteredLetters = lettersResponse.where((letter) =>
+              (letter['receiver_class'] == myClass || letter['receiver_class'] == null ))
+             .toList();
+      }
+         yield filteredLetters.length;
          }on PostgrestException catch (e) {
          print('获取未读信件数量发生 Supabase 错误: ${e.message}');
           yield 0;
@@ -359,39 +382,4 @@ class DataService {
        await Future.delayed(const Duration(seconds: 5));
      }
   }
-}
-
-class GlobalAppBar extends StatelessWidget implements PreferredSizeWidget {
-  final String title;
-  final bool showBackButton;
-  const GlobalAppBar({super.key, required this.title, this.showBackButton = false});
-
-  @override
-  Widget build(BuildContext context) {
-    return Row(
-      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-      children: [
-         showBackButton ? IconButton(
-          icon: const Icon(Icons.arrow_back, size: 30, color: Colors.black87),
-          onPressed: () => Navigator.pop(context),
-        ) : IconButton(
-          icon: const Icon(Icons.menu, size: 30, color: Colors.black87),
-          onPressed: () => Scaffold.of(context).openDrawer(),
-        ),
-        Text(
-          title,
-          style: const TextStyle(
-            fontSize: 24,
-            fontWeight: FontWeight.bold,
-            color: Colors.black87,
-          ),
-        ),
-        const SizedBox(width: 48),
-      ],
-    );
-  }
-  
-    @override
-  Size get preferredSize => const Size.fromHeight(kToolbarHeight);
-
 }
