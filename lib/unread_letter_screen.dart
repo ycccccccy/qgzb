@@ -45,7 +45,7 @@ class _UnreadLetterScreenState extends State<UnreadLetterScreen> {
 
       final studentData = response;
       final allowAnonymous = studentData['allow_anonymous'] ?? false;
-      print('Current User ID: $currentUserId');
+      //print('Current User ID: $currentUserId');
 
       final query = Supabase.instance.client
           .from('letters')
@@ -53,7 +53,7 @@ class _UnreadLetterScreenState extends State<UnreadLetterScreen> {
           .or('and(receiver_name.eq.${studentData['name']},my_school.eq.${studentData['school']}),and(receiver_name.eq.${studentData['name']},target_school.eq.${studentData['school']})');
 
       final lettersResponse = await query;
-      print('原始信件数据 (lettersResponse): $lettersResponse');
+      //print('原始信件数据 (lettersResponse): $lettersResponse');
 
       final myClass = studentData['class_name'];
       List<Map<String, dynamic>> filteredLetters;
@@ -67,7 +67,7 @@ class _UnreadLetterScreenState extends State<UnreadLetterScreen> {
             .where((letter) => (letter['receiver_class'] == myClass || letter['receiver_class'] == null))
             .toList();
       }
-        print('过滤后的信件数据 (filteredLetters): $filteredLetters');
+        //print('过滤后的信件数据 (filteredLetters): $filteredLetters');
       // 获取发件人姓名
       List<Map<String, dynamic>> lettersWithSenderNames = [];
       for (var letter in filteredLetters) {
@@ -80,16 +80,16 @@ class _UnreadLetterScreenState extends State<UnreadLetterScreen> {
 
         final senderName = studentResponse?['name'] as String?;
         lettersWithSenderNames.add({...letter, 'sender_name': senderName});
-         print('信件ID: ${letter['id']}, 发件人ID: $senderId, 发件人姓名: $senderName');
+         //print('信件ID: ${letter['id']}, 发件人ID: $senderId, 发件人姓名: $senderName');
       }
-       print('最终信件数据 (lettersWithSenderNames): $lettersWithSenderNames');
+      //print('最终信件数据 (lettersWithSenderNames): $lettersWithSenderNames');
       return lettersWithSenderNames;
 
     } on PostgrestException catch (e) {
-      print('获取信件数据发生 Supabase 错误: ${e.message}');
+      //print('获取信件数据发生 Supabase 错误: ${e.message}');
       return [];
     } catch (e) {
-      print('获取信件数据发生其他错误：$e');
+      //print('获取信件数据发生其他错误：$e');
       return [];
     }
   }
@@ -105,20 +105,20 @@ class _UnreadLetterScreenState extends State<UnreadLetterScreen> {
         future: _lettersFuture,
         builder: (context, snapshot) {
           if (snapshot.connectionState == ConnectionState.waiting) {
-            print('Loading...');
+            //print('Loading...');
             return Center(child: CircularProgressIndicator());
           } else if (snapshot.hasError) {
-            print('Error: ${snapshot.error}');
+            //print('Error: ${snapshot.error}');
             return Center(
                 child: Text('Error: ${snapshot.error}',
                     style: TextStyle(color: Colors.red)));
           } else if (!snapshot.hasData || snapshot.data!.isEmpty) {
-            print('No data');
+            //print('No data');
             return Center(
                 child: Text('没有未读信件',
                     style: TextStyle(color: Colors.grey[500])));
           } else {
-            print('Data received: ${snapshot.data}');
+            //print('Data received: ${snapshot.data}');
             return ListView.separated(
               padding: EdgeInsets.all(16.0),
               itemCount: snapshot.data!.length,
@@ -143,7 +143,7 @@ class _UnreadLetterScreenState extends State<UnreadLetterScreen> {
       return '未知时间';
     }
     try {
-      return DateFormat('yyyy-MM-dd HH:mm').format(dateTime); // 删除 toLocal()
+      return DateFormat('yyyy-MM-dd HH:mm').format(dateTime);
     } catch (e) {
       return '未知时间';
     }
@@ -151,7 +151,9 @@ class _UnreadLetterScreenState extends State<UnreadLetterScreen> {
 
   Widget _buildLetterCard(BuildContext context, Map<String, dynamic> letter) {
     final isMobile = MediaQuery.of(context).size.width < 600;
-    final senderName = letter['sender_name']?.toString() ?? '未知发件人';
+    final senderName = letter['is_anonymous'] == true
+        ? '匿名朋友'
+        : letter['sender_name']?.toString() ?? '未知发件人'; // 修改这里
     final sendTime = letter['send_time'] == null
         ? '未知时间'
         : _formatTime(letter['send_time']);

@@ -17,18 +17,18 @@ class _SendLetterScreenState extends State<SendLetterScreen> {
   bool _isLoading = false;
   String? _selectedGrade;
   int? _selectedClass;
-  bool _isAnonymous = false;
+  bool _isAnonymous = false;  // 匿名发送状态
   String? _selectedDistrict;
   String? _selectedSchool;
   String? _mySchool;
   bool _isSpecificClass = false;
   String? _selectedClassName;
-  String? _senderName; // 添加 senderName 字段
+  String? _senderName;
 
   @override
   void initState() {
     super.initState();
-    _loadMySchoolAndName(); // 获取学校和姓名
+    _loadMySchoolAndName();
   }
 
   void _updateClassValue() {
@@ -42,31 +42,32 @@ class _SendLetterScreenState extends State<SendLetterScreen> {
       });
     }
   }
-  Future<void> _loadMySchoolAndName() async { // 修改方法名并获取姓名
+
+  Future<void> _loadMySchoolAndName() async {
     final prefs = await SharedPreferences.getInstance();
     final String? rememberedId = prefs.getString('rememberedId');
     final String? rememberedName = prefs.getString('rememberedName');
-     if (rememberedId != null && rememberedName != null) {
-      try{
-          final studentData = await _fetchStudentData(rememberedId, rememberedName);
-          if(studentData != null){
-            setState(() {
-              _mySchool = studentData['school'];
-              _senderName = studentData['name'];//获取姓名
-            });
-          }
-      }catch(e){
-         print('Error loadMySchoolAndName: $e');
+    if (rememberedId != null && rememberedName != null) {
+      try {
+        final studentData = await _fetchStudentData(rememberedId, rememberedName);
+        if (studentData != null) {
+          setState(() {
+            _mySchool = studentData['school'];
+            _senderName = studentData['name'];
+          });
+        }
+      } catch (e) {
+        print('Error loadMySchoolAndName: $e');
       }
-     }
+    }
   }
+
   @override
   void dispose() {
     _receiverNameController.dispose();
     _contentController.dispose();
     super.dispose();
   }
-
 
   Future<void> _sendLetter() async {
     if (!_formKey.currentState!.validate() || _selectedSchool == null) {
@@ -77,9 +78,9 @@ class _SendLetterScreenState extends State<SendLetterScreen> {
       _showErrorSnackBar('请选择年级和班级');
       return;
     }
-    if(!_isSpecificClass){
+    if (!_isSpecificClass) {
       final confirmSend = await _showConfirmationDialog();
-      if(!confirmSend){
+      if (!confirmSend) {
         return;
       }
     }
@@ -98,11 +99,11 @@ class _SendLetterScreenState extends State<SendLetterScreen> {
           .from('letters')
           .insert({
         'sender_id': currentUserId,
-        'sender_name': _senderName, // 添加 sender_name
+        'sender_name': _senderName,
         'receiver_name': receiverName,
         'content': content,
         'send_time': DateTime.now().toIso8601String(),
-        'is_anonymous': _isAnonymous,
+        'is_anonymous': _isAnonymous, // 使用 _isAnonymous
         'target_school': _selectedSchool,
         'my_school': _mySchool,
         'receiver_class': _isSpecificClass ? _selectedClassName : null,
@@ -124,6 +125,7 @@ class _SendLetterScreenState extends State<SendLetterScreen> {
       });
     }
   }
+
   Future<bool> _showConfirmationDialog() async {
     return await showDialog<bool>(
       context: context,
@@ -145,6 +147,7 @@ class _SendLetterScreenState extends State<SendLetterScreen> {
       },
     ) ?? false;
   }
+
   void _showErrorSnackBar(String message) {
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
@@ -168,7 +171,7 @@ class _SendLetterScreenState extends State<SendLetterScreen> {
     final isMobile = MediaQuery.of(context).size.width < 600;
     return Scaffold(
       backgroundColor: Colors.grey[100],
-      appBar:  PreferredSize(
+      appBar: PreferredSize(
           preferredSize: const Size.fromHeight(kToolbarHeight),
           child: GlobalAppBar(title: '发送信件', showBackButton: true)),
       body: Padding(
@@ -274,7 +277,7 @@ class _SendLetterScreenState extends State<SendLetterScreen> {
                   ],
                 ),
                 SizedBox(height: 8),
-                if(_isSpecificClass)
+                if (_isSpecificClass)
                   Row(
                     children: [
                       Expanded(
@@ -350,6 +353,20 @@ class _SendLetterScreenState extends State<SendLetterScreen> {
                     return null;
                   },
                 ),
+                  SizedBox(height: 16),
+                 Row(
+                  children: [
+                    Checkbox(
+                        value: _isAnonymous,
+                        onChanged: (value) {
+                            setState(() {
+                                _isAnonymous = value!;
+                             });
+                           },
+                     ),
+                     const Text('匿名发送', style: TextStyle(fontSize: 16, color: Colors.black87)),
+                    ],
+                ),
                 SizedBox(height: 24),
                 ElevatedButton(
                   onPressed: _isLoading ? null : _sendLetter,
@@ -393,6 +410,7 @@ class _SendLetterScreenState extends State<SendLetterScreen> {
       validator: validator,
     );
   }
+
   DropdownButtonFormField<T> buildDropdownButtonFormField<T>({
     required String labelText,
     required String hintText,
@@ -417,7 +435,8 @@ class _SendLetterScreenState extends State<SendLetterScreen> {
       validator: validator,
     );
   }
-    Future<Map<String, dynamic>?> _fetchStudentData(
+
+  Future<Map<String, dynamic>?> _fetchStudentData(
       String studentId, String name) async {
     final query = Supabase.instance.client
         .from('students')

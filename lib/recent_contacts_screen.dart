@@ -25,8 +25,8 @@ class _RecentContactsScreenState extends State<RecentContactsScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: Colors.grey[100],
-       appBar:  PreferredSize(
-            preferredSize: const Size.fromHeight(kToolbarHeight),
+       appBar:  const PreferredSize(
+            preferredSize: Size.fromHeight(kToolbarHeight),
             child: GlobalAppBar(title: '最近联系人', showBackButton: true)),
       body: FutureBuilder<List<String>>(
         future: _contactsFuture,
@@ -34,7 +34,7 @@ class _RecentContactsScreenState extends State<RecentContactsScreen> {
           if (snapshot.connectionState == ConnectionState.waiting) {
             return const Center(child: CircularProgressIndicator());
           } else if (snapshot.hasError) {
-            return Center(
+            return const Center(
                 child: Text('Error', style: TextStyle(color: Colors.red)));
           } else if (snapshot.hasData && snapshot.data!.isNotEmpty) {
             return ListView.builder(

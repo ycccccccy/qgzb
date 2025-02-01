@@ -5,11 +5,24 @@ import 'package:crypto/crypto.dart';
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import 'home_screen.dart';
+import 'home_screen_main.dart';
 import 'simple_captcha.dart';
 import 'register_screen.dart';
 import 'package:flutter/services.dart';
 import 'school_data.dart';
+
+// 定义 SharedPreferences 的 Key 常量
+const String _rememberMeKey = 'rememberMe';
+const String _autoLoginKey = 'autoLogin';
+const String _rememberedIdKey = 'rememberedId';
+const String _rememberedNameKey = 'rememberedName';
+const String _rememberedPasswordKey = 'rememberedPassword';
+const String _currentUserIdKey = 'current_user_id';
+const String _selectedDistrictKey = 'selectedDistrict';
+const String _selectedSchoolKey = 'selectedSchool';
+const String _selectedGradeKey = 'selectedGrade';
+const String _selectedClassKey = 'selectedClass';
+
 
 class LoginScreen extends StatefulWidget {
   @override
@@ -61,62 +74,85 @@ class _LoginScreenState extends State<LoginScreen> {
   Future<void> _loadRememberMe() async {
     final prefs = await SharedPreferences.getInstance();
     setState(() {
-      _rememberMe = prefs.getBool('rememberMe') ?? false;
-      _autoLogin = prefs.getBool('autoLogin') ?? false;
+      _rememberMe = prefs.getBool(_rememberMeKey) ?? false;
+      _autoLogin = prefs.getBool(_autoLoginKey) ?? false;
       if (_rememberMe || _autoLogin) {
-        _studentIdController.text = prefs.getString('rememberedId') ?? '';
-        _nameController.text = prefs.getString('rememberedName') ?? '';
+        _studentIdController.text = prefs.getString(_rememberedIdKey) ?? '';
+        _nameController.text = prefs.getString(_rememberedNameKey) ?? '';
         if (_autoLogin) {
-          _passwordController.text = prefs.getString('rememberedPassword') ?? '';
+          _passwordController.text = prefs.getString(_rememberedPasswordKey) ?? '';
         }
       }
+      _selectedDistrict = prefs.getString(_selectedDistrictKey);
+      _selectedSchool = prefs.getString(_selectedSchoolKey);
+      _selectedGrade = prefs.getString(_selectedGradeKey);
+      _selectedClass = prefs.getInt(_selectedClassKey);
+      _updateClassValue();
     });
   }
 
   Future<void> _saveRememberMe() async {
     final prefs = await SharedPreferences.getInstance();
-    await prefs.setBool('rememberMe', _rememberMe);
-    await prefs.setBool('autoLogin', _autoLogin);
+    await prefs.setBool(_rememberMeKey, _rememberMe);
+    await prefs.setBool(_autoLoginKey, _autoLogin);
     if(_rememberMe || _autoLogin){
-      await prefs.setString('rememberedId', _studentIdController.text);
-      await prefs.setString('rememberedName', _nameController.text);
+      await prefs.setString(_rememberedIdKey, _studentIdController.text);
+      await prefs.setString(_rememberedNameKey, _nameController.text);
       if (_autoLogin) {
-        await prefs.setString('rememberedPassword',_passwordController.text);
+        await prefs.setString(_rememberedPasswordKey,_passwordController.text);
       }else{
-        await prefs.remove('rememberedPassword');
+        await prefs.remove(_rememberedPasswordKey);
       }
+      await prefs.setString(_selectedDistrictKey, _selectedDistrict ?? '');
+      await prefs.setString(_selectedSchoolKey, _selectedSchool ?? '');
+      await prefs.setString(_selectedGradeKey, _selectedGrade ?? '');
+      await prefs.setInt(_selectedClassKey, _selectedClass ?? 0);
     }else{
-      await prefs.remove('rememberedId');
-      await prefs.remove('rememberedName');
-      await prefs.remove('rememberedPassword');
+      await prefs.remove(_rememberedIdKey);
+      await prefs.remove(_rememberedNameKey);
+      await prefs.remove(_rememberedPasswordKey);
+       await prefs.remove(_selectedDistrictKey);
+      await prefs.remove(_selectedSchoolKey);
+      await prefs.remove(_selectedGradeKey);
+      await prefs.remove(_selectedClassKey);
     }
   }
 
   void _onCaptchaCompleted(String value) {}
 
+   Future<(String?, String?, String?,String?, String?,int?)> _loadAutoLoginInfo() async {
+    final prefs = await SharedPreferences.getInstance();
+    final rememberedId = prefs.getString(_rememberedIdKey);
+    final rememberedName = prefs.getString(_rememberedNameKey);
+    final rememberedPassword = prefs.getString(_rememberedPasswordKey);
+     final selectedDistrict = prefs.getString(_selectedDistrictKey);
+      final selectedSchool = prefs.getString(_selectedSchoolKey);
+       final selectedClass = prefs.getInt(_selectedClassKey);
+    return (rememberedId, rememberedName, rememberedPassword,selectedDistrict, selectedSchool,selectedClass);
+  }
+
   Future<void> _attemptAutoLogin() async {
     final prefs = await SharedPreferences.getInstance();
-    final bool autoLogin = prefs.getBool('autoLogin') ?? false;
-    final String? rememberedId = prefs.getString('rememberedId');
-    final String? rememberedName = prefs.getString('rememberedName');
-    final String? rememberedPassword = prefs.getString('rememberedPassword');
+    final bool autoLogin = prefs.getBool(_autoLoginKey) ?? false;
 
+    final (rememberedId, rememberedName, rememberedPassword,selectedDistrict,selectedSchool,selectedClass) =
+        await _loadAutoLoginInfo();
     if (autoLogin && rememberedId != null && rememberedName != null &&
-        rememberedPassword != null) {
+        rememberedPassword != null && selectedDistrict != null &&
+        selectedSchool != null && selectedClass != null) {
       setState(() => _isLoading = true);
       try {
         final isValid = await _verifyStudent(
             studentId: rememberedId,
             name: rememberedName,
-            className: _selectedClassName ?? '',
+            className: '$_selectedGrade$_selectedClass班',
             password: rememberedPassword,
-          school: _selectedSchool ?? '',
+            school: selectedSchool,
         );
-
         if (isValid) {
-          await prefs.setString('current_user_id', rememberedId);
+          await prefs.setString(_currentUserIdKey, rememberedId);
           Navigator.pushReplacement(
-              context, MaterialPageRoute(builder: (_) => HomeScreen()));
+              context, MaterialPageRoute(builder: (_) => HomeScreenMain()));
         } else {
           setState(() => _isLoading = false);
         }
@@ -155,9 +191,9 @@ class _LoginScreenState extends State<LoginScreen> {
       if (isValid) {
         await _saveRememberMe();
         final prefs = await SharedPreferences.getInstance();
-        await prefs.setString('current_user_id', studentId);
+        await prefs.setString(_currentUserIdKey, studentId);
         Navigator.pushReplacement(
-            context, MaterialPageRoute(builder: (_) => HomeScreen()));
+            context, MaterialPageRoute(builder: (_) => HomeScreenMain()));
       } else {
         _showErrorSnackBar('学号/姓名/班级或密码或学校错误');
       }
@@ -361,8 +397,11 @@ class _LoginScreenState extends State<LoginScreen> {
                             ))
                                 .toList(),
                             onChanged: (value) {
-                              _selectedGrade = value;
-                              _updateClassValue();
+                                 setState(() {
+                                   _selectedGrade = value;
+                                  _updateClassValue();
+                                 });
+
                             },
                             validator: (value) {
                               if (value == null || value.isEmpty) {
@@ -393,8 +432,10 @@ class _LoginScreenState extends State<LoginScreen> {
                             ))
                                 .toList(),
                             onChanged: (value) {
-                              _selectedClass = value;
-                              _updateClassValue();
+                               setState(() {
+                                _selectedClass = value;
+                                 _updateClassValue();
+                               });
                             },
                             validator: (value) {
                               if (value == null) {
