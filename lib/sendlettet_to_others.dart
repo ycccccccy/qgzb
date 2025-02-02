@@ -188,7 +188,7 @@ class _SendToOthersPageState extends State<SendToOthersPage> {
           padding: const EdgeInsets.all(16.0),
           child: Column(
             children: [
-              const GlobalAppBar(title: '给他人写信', showBackButton: true),
+              const GlobalAppBar(title: '给他人写信', showBackButton: true, actions: [],),
               Expanded(
                 child: SingleChildScrollView(
                   padding: const EdgeInsets.all(16),

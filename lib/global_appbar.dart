@@ -3,7 +3,7 @@ import 'package:flutter/material.dart';
 class GlobalAppBar extends StatelessWidget implements PreferredSizeWidget {
   final String title;
   final bool showBackButton;
-  const GlobalAppBar({super.key, required this.title, this.showBackButton = false});
+  const GlobalAppBar({super.key, required this.title, this.showBackButton = false, required List<IconButton> actions});
 
   @override
   Widget build(BuildContext context) {

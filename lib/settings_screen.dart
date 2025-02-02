@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
-import 'home_screen.dart';
 import 'global_appbar.dart';
 
 class SettingsScreen extends StatefulWidget {
@@ -50,14 +49,14 @@ class _SettingsScreenState extends State<SettingsScreen> {
       }on PostgrestException catch (e) {
          print('更新匿名信设置发生 Supabase 错误: ${e.message}');
         ScaffoldMessenger.of(context)
-          .showSnackBar(SnackBar(content: Text('更新失败，请稍后重试')));
+          .showSnackBar(const SnackBar(content: Text('更新失败，请稍后重试')));
            setState(() {
               _allowAnonymous = !value;
             });
       }catch(e){
           print('更新匿名信设置发生其他错误：$e');
           ScaffoldMessenger.of(context)
-            .showSnackBar(SnackBar(content: Text('更新失败，请稍后重试')));
+            .showSnackBar(const SnackBar(content: Text('更新失败，请稍后重试')));
               setState(() {
                 _allowAnonymous = !value;
               });
@@ -115,7 +114,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                             },
                           ),
                         ),
-                        SizedBox(width: 16),
+                        const SizedBox(width: 16),
                         Expanded(
                           child: DropdownButtonFormField<int>(
                             decoration: InputDecoration(
@@ -175,15 +174,15 @@ class _SettingsScreenState extends State<SettingsScreen> {
                       })
                     .eq('student_id', currentUserId);
                        ScaffoldMessenger.of(context)
-                         .showSnackBar(SnackBar(content: Text('班级修改成功')));
+                         .showSnackBar(const SnackBar(content: Text('班级修改成功')));
                    }on PostgrestException catch (e) {
                      print('更新班级发生 Supabase 错误: ${e.message}');
                       ScaffoldMessenger.of(context)
-                        .showSnackBar(SnackBar(content: Text('班级修改失败')));
+                        .showSnackBar(const SnackBar(content: Text('班级修改失败')));
                    }catch (e){
                       print('更新班级发生其他错误：$e');
                       ScaffoldMessenger.of(context)
-                        .showSnackBar(SnackBar(content: Text('班级修改失败')));
+                        .showSnackBar(const SnackBar(content: Text('班级修改失败')));
                    }
 
               },
@@ -202,9 +201,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: Colors.grey[100],
-      appBar:  PreferredSize(
-            preferredSize: const Size.fromHeight(kToolbarHeight),
-            child: GlobalAppBar(title: '设置', showBackButton: true)),
+      appBar:  const PreferredSize(
+            preferredSize: Size.fromHeight(kToolbarHeight),
+            child: GlobalAppBar(title: '设置', showBackButton: true, actions: [],)),
       body: Padding(
            padding: const EdgeInsets.all(16.0),
         child: Column(
@@ -213,7 +212,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                Row(
                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
-                 Text('接收匿名信件', style: TextStyle(fontSize: 16, color: Colors.black87)),
+                 const Text('接收匿名信件', style: TextStyle(fontSize: 16, color: Colors.black87)),
                  Switch(
                    value: _allowAnonymous,
                    onChanged: (value) {
@@ -222,13 +221,13 @@ class _SettingsScreenState extends State<SettingsScreen> {
                  ),
                ],
              ),
-              SizedBox(height: 16),
+              const SizedBox(height: 16),
             InkWell(
                 onTap: _changeClass,
                 child:  Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
-                   Text('修改班级', style: TextStyle(fontSize: 16, color: Colors.black87)),
+                   const Text('修改班级', style: TextStyle(fontSize: 16, color: Colors.black87)),
                      Icon(Icons.arrow_forward_ios, size: 16, color: Colors.grey[400])
                    ],
                 ),

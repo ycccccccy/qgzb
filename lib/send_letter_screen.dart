@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import 'home_screen.dart';
 import 'school_data.dart';
 import 'global_appbar.dart';
 
@@ -171,9 +170,9 @@ class _SendLetterScreenState extends State<SendLetterScreen> {
     final isMobile = MediaQuery.of(context).size.width < 600;
     return Scaffold(
       backgroundColor: Colors.grey[100],
-      appBar: PreferredSize(
-          preferredSize: const Size.fromHeight(kToolbarHeight),
-          child: GlobalAppBar(title: '发送信件', showBackButton: true)),
+      appBar: const PreferredSize(
+          preferredSize: Size.fromHeight(kToolbarHeight),
+          child: GlobalAppBar(title: '发送信件', showBackButton: true, actions: [],)),
       body: Padding(
         padding: EdgeInsets.all(isMobile ? 16 : 32),
         child: Form(
@@ -193,7 +192,7 @@ class _SendLetterScreenState extends State<SendLetterScreen> {
                     return null;
                   },
                 ),
-                SizedBox(height: 16),
+                const SizedBox(height: 16),
                 DropdownButtonFormField<String>(
                   decoration: InputDecoration(
                     labelText: '目标区',
@@ -226,7 +225,7 @@ class _SendLetterScreenState extends State<SendLetterScreen> {
                     return null;
                   },
                 ),
-                SizedBox(height: 16),
+                const SizedBox(height: 16),
                 DropdownButtonFormField<String>(
                   decoration: InputDecoration(
                     labelText: '目标学校',
@@ -257,7 +256,7 @@ class _SendLetterScreenState extends State<SendLetterScreen> {
                     return null;
                   },
                 ),
-                SizedBox(height: 16),
+                const SizedBox(height: 16),
                 Row(
                   children: [
                     Checkbox(
@@ -276,7 +275,7 @@ class _SendLetterScreenState extends State<SendLetterScreen> {
                     const Text('指定班级发送', style: TextStyle(fontSize: 16, color: Colors.black87)),
                   ],
                 ),
-                SizedBox(height: 8),
+                const SizedBox(height: 8),
                 if (_isSpecificClass)
                   Row(
                     children: [
@@ -312,7 +311,7 @@ class _SendLetterScreenState extends State<SendLetterScreen> {
                           },
                         ),
                       ),
-                      SizedBox(width: 16),
+                      const SizedBox(width: 16),
                       Expanded(
                         child: buildDropdownButtonFormField(
                           labelText: '班级',
@@ -340,7 +339,7 @@ class _SendLetterScreenState extends State<SendLetterScreen> {
                       ),
                     ],
                   ),
-                SizedBox(height: 16),
+                const SizedBox(height: 16),
                 buildTextFormField(
                   controller: _contentController,
                   labelText: '信件内容',
@@ -353,7 +352,7 @@ class _SendLetterScreenState extends State<SendLetterScreen> {
                     return null;
                   },
                 ),
-                  SizedBox(height: 16),
+                  const SizedBox(height: 16),
                  Row(
                   children: [
                     Checkbox(
@@ -367,18 +366,18 @@ class _SendLetterScreenState extends State<SendLetterScreen> {
                      const Text('匿名发送', style: TextStyle(fontSize: 16, color: Colors.black87)),
                     ],
                 ),
-                SizedBox(height: 24),
+                const SizedBox(height: 24),
                 ElevatedButton(
                   onPressed: _isLoading ? null : _sendLetter,
                   style: ElevatedButton.styleFrom(
                     backgroundColor: Colors.blue,
-                    padding: EdgeInsets.symmetric(vertical: 14),
+                    padding: const EdgeInsets.symmetric(vertical: 14),
                     shape: RoundedRectangleBorder(
                         borderRadius: BorderRadius.circular(8)),
                   ),
                   child: _isLoading
-                      ? CircularProgressIndicator(color: Colors.white)
-                      : Text('发送', style: TextStyle(color: Colors.white)),
+                      ? const CircularProgressIndicator(color: Colors.white)
+                      : const Text('发送', style: TextStyle(color: Colors.white)),
                 ),
               ],
             ),

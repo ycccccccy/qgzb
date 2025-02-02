@@ -1,24 +1,19 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
-import 'package:supabase_flutter/supabase_flutter.dart';
-import 'home_screen.dart';
 import 'global_appbar.dart';
 
-class LetterDetailScreen extends StatefulWidget {
+class LetterDetailScreen extends StatelessWidget {
   final int letterId;
   final Map<String, dynamic> letter;
-  LetterDetailScreen({required this.letterId, required this.letter});
-  @override
-  _LetterDetailScreenState createState() => _LetterDetailScreenState();
-}
-
-class _LetterDetailScreenState extends State<LetterDetailScreen> {
-  late Map<String, dynamic> _letter;
-  @override
-  void initState() {
-    super.initState();
-    _letter = widget.letter;
-  }
+   LetterDetailScreen({super.key, required this.letterId, required this.letter});
+   final _dateFormat = DateFormat('yyyy-MM-dd HH:mm');
+   final String _unknownSender = '未知发件人';
+   final String _unknownSchool = '未知学校';
+   final String _unknownReceiver = '未知收件人';
+   final String _senderSchoolTitle = '发件人学校:';
+   final String _receiverSchoolTitle = '收件人学校:';
+   final String _receiverTitle = '收件人:';
+  final String _contentTitle = '内容:';
 
   String _formatTime(String? time) {
     if (time == null) {
@@ -29,7 +24,7 @@ class _LetterDetailScreenState extends State<LetterDetailScreen> {
       return '未知时间';
     }
     try {
-      return DateFormat('yyyy-MM-dd HH:mm').format(dateTime);
+      return _dateFormat.format(dateTime);
     } catch (e) {
       return '未知时间';
     }
@@ -38,14 +33,15 @@ class _LetterDetailScreenState extends State<LetterDetailScreen> {
   @override
   Widget build(BuildContext context) {
     final isMobile = MediaQuery.of(context).size.width < 600;
-      final senderName = _letter['is_anonymous'] == true
-          ? '匿名朋友'
-          : _letter['sender_name']?.toString() ?? '未知发件人';
+    final senderName = letter['is_anonymous'] == true
+        ? '匿名朋友'
+        : letter['sender_name']?.toString() ?? _unknownSender;
+
     return Scaffold(
       backgroundColor: Colors.white,
       appBar: const PreferredSize(
           preferredSize: Size.fromHeight(kToolbarHeight),
-          child: GlobalAppBar(title: '信件详情', showBackButton: true)),
+          child: GlobalAppBar(title: '信件详情', showBackButton: true, actions: [],)),
       body: Padding(
         padding: EdgeInsets.all(isMobile ? 16 : 32),
         child: SingleChildScrollView(
@@ -56,25 +52,25 @@ class _LetterDetailScreenState extends State<LetterDetailScreen> {
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
                   Text(
-                   senderName,
+                    senderName,
                     style: const TextStyle(
                         fontSize: 20,
                         fontWeight: FontWeight.bold,
                         color: Colors.black87),
                   ),
                   Text(
-                    _formatTime(_letter['send_time']),
+                    _formatTime(letter['send_time']),
                     style: TextStyle(fontSize: 14, color: Colors.grey[700]),
                   ),
                 ],
               ),
               const SizedBox(height: 16),
               Text(
-                '发件人学校:',
+                _senderSchoolTitle,
                 style: TextStyle(fontSize: 16, color: Colors.grey[700]),
               ),
               Text(
-                _letter['my_school']?.toString() ?? '未知学校',
+                letter['my_school']?.toString() ?? _unknownSchool,
                 style: const TextStyle(
                     fontSize: 18,
                     fontWeight: FontWeight.w500,
@@ -82,11 +78,11 @@ class _LetterDetailScreenState extends State<LetterDetailScreen> {
               ),
               const SizedBox(height: 16),
               Text(
-                '收件人学校:',
+               _receiverSchoolTitle,
                 style: TextStyle(fontSize: 16, color: Colors.grey[700]),
               ),
               Text(
-                _letter['target_school']?.toString() ?? '未知学校',
+                 letter['target_school']?.toString() ?? _unknownSchool,
                 style: const TextStyle(
                     fontSize: 18,
                     fontWeight: FontWeight.w500,
@@ -94,11 +90,11 @@ class _LetterDetailScreenState extends State<LetterDetailScreen> {
               ),
               const SizedBox(height: 16),
               Text(
-                '收件人:',
+                _receiverTitle,
                 style: TextStyle(fontSize: 16, color: Colors.grey[700]),
               ),
               Text(
-                _letter['receiver_name']?.toString() ?? '未知收件人',
+                letter['receiver_name']?.toString() ?? _unknownReceiver,
                 style: const TextStyle(
                     fontSize: 18,
                     fontWeight: FontWeight.w500,
@@ -106,12 +102,12 @@ class _LetterDetailScreenState extends State<LetterDetailScreen> {
               ),
               const SizedBox(height: 16),
               Text(
-                '内容:',
+               _contentTitle,
                 style: TextStyle(fontSize: 16, color: Colors.grey[700]),
               ),
               const SizedBox(height: 8),
               Text(
-                _letter['content']?.toString() ?? '',
+                letter['content']?.toString() ?? '',
                 style: const TextStyle(fontSize: 16, color: Colors.black87),
               ),
             ],

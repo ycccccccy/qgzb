@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import 'home_screen.dart';
 import 'contact_detail_screen.dart';
 import 'global_appbar.dart';
 
@@ -27,7 +26,7 @@ class _RecentContactsScreenState extends State<RecentContactsScreen> {
       backgroundColor: Colors.grey[100],
        appBar:  const PreferredSize(
             preferredSize: Size.fromHeight(kToolbarHeight),
-            child: GlobalAppBar(title: '最近联系人', showBackButton: true)),
+            child: GlobalAppBar(title: '最近联系人', showBackButton: true, actions: [],)),
       body: FutureBuilder<List<String>>(
         future: _contactsFuture,
         builder: (context, snapshot) {

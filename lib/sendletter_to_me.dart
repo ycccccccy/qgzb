@@ -21,33 +21,43 @@ class _SendToSelfPageState extends State<SendToSelfPage> {
   final _deliveryDateController = TextEditingController();
   File? _image;
   bool _isSending = false;
+  final SupabaseClient _supabase = Supabase.instance.client;
 
   Future<void> _sendLetter() async {
     if (_isSending) return;
     setState(() => _isSending = true);
     try {
-      final user = Supabase.instance.client.auth.currentUser;
-      if (user == null) throw '用户未登录';
+      // 确保用户会话有效
+      final session = _supabase.auth.currentSession;
+      if (session == null) throw '用户未登录或会话已过期';
+
+      final user = _supabase.auth.currentUser;
+      if (user == null) throw '用户信息获取失败';
 
       // 压缩图片并上传到存储
       String? imagePath;
       if (_image != null) {
-         final compressedImage = await _compressImage(_image!);
-         imagePath = await _uploadImage(compressedImage);
+        final compressedImage = await _compressImage(_image!);
+        imagePath = await _uploadImage(compressedImage);
+        if (imagePath.isEmpty) throw '图片上传失败';
       }
 
-      // 存储信件
-      final letter = await Supabase.instance.client.from('letters').insert({
-        'sender_id': user.id,
-        'receiver_id': user.id, // 收件人即自己
-        'message': _messageController.text,
-        'delivery_date': _deliveryDateController.text,
-      }).select().single();
+      // 存储信件（使用新语法）
+      final letterResponse = await _supabase
+          .from('Letters')
+          .insert({
+            'sender_id': user.id,
+            'receiver_id': user.id,
+            'message': _messageController.text,
+            'delivery_date': _deliveryDateController.text,
+          })
+          .select()
+          .single();
 
       // 存储附件
       if (imagePath != null) {
-        await Supabase.instance.client.from('attachments').insert({
-          'letter_id': letter['id'],
+        await _supabase.from('attachments').insert({
+          'letter_id': letterResponse['id'],
           'file_path': imagePath,
         });
       }
@@ -61,55 +71,46 @@ class _SendToSelfPageState extends State<SendToSelfPage> {
         backgroundColor: Colors.red,
       ));
     } finally {
-       setState(() => _isSending = false);
+      setState(() => _isSending = false);
     }
   }
 
-  // 图片压缩逻辑，使用 compute 在后台线程执行
-   Future<Uint8List> _compressImage(File image) async {
+  Future<Uint8List> _compressImage(File image) async {
     return compute(_compressImageInBackground, await image.readAsBytes());
   }
 
-  // 实际的压缩逻辑
   static Uint8List _compressImageInBackground(List<int> imageBytes) {
-      final imageDecoded = img.decodeImage(Uint8List.fromList(imageBytes))!;
-      final resized = img.copyResize(imageDecoded, width: 800);
-      return Uint8List.fromList(img.encodeJpg(resized, quality: 70));
-  }
-  // 上传到Supabase存储
-  Future<String> _uploadImage(Uint8List image) async {
-    try {
-     final filePath = 'attachments/${DateTime.now().millisecondsSinceEpoch}.jpg';
-     await Supabase.instance.client.storage
-          .from('letters')
-          .upload(filePath, image as File, fileOptions: const FileOptions(contentType: 'image/jpeg'));
-        return filePath;
-     } catch(e){
-        print('图片上传失败: $e');
-        ScaffoldMessenger.of(context).showSnackBar(
-           SnackBar(content: Text('图片上传失败: ${e.toString()}'), backgroundColor: Colors.red)
-        );
-        return '';
-     }
+    final imageDecoded = img.decodeImage(Uint8List.fromList(imageBytes))!;
+    final resized = img.copyResize(imageDecoded, width: 800);
+    return Uint8List.fromList(img.encodeJpg(resized, quality: 70));
   }
 
+  Future<String> _uploadImage(Uint8List image) async {
+    try {
+      final filePath = 'attachments/${DateTime.now().millisecondsSinceEpoch}.jpg';
+      await _supabase.storage
+          .from('Letters')
+          .upload(filePath, image as File, fileOptions: const FileOptions(contentType: 'image/jpeg'));
+      return filePath;
+    } catch (e) {
+      print('图片上传失败: $e');
+      return '';
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: const Color(0xFFF5F5F5),
-      appBar: null,
       body: SafeArea(
         child: Padding(
-            padding: const EdgeInsets.all(16),
-            child: Column(
-              children: [
-                const GlobalAppBar(title: '给未来的自己', showBackButton: true),
-                Expanded(
-                  child: _buildForm(),
-                ),
-              ]
-            )
+          padding: const EdgeInsets.all(16),
+          child: Column(
+            children: [
+              const GlobalAppBar(title: '给未来的自己', showBackButton: true, actions: [],),
+              Expanded(child: _buildForm()),
+            ],
+          ),
         ),
       ),
     );
@@ -135,7 +136,7 @@ class _SendToSelfPageState extends State<SendToSelfPage> {
                 firstDate: DateTime.now(),
                 lastDate: DateTime(2030),
               );
-                if (date != null) {
+              if (date != null) {
                 _deliveryDateController.text = DateFormat('yyyy-MM-dd').format(date);
               }
             },
@@ -144,23 +145,23 @@ class _SendToSelfPageState extends State<SendToSelfPage> {
           _image != null
               ? Image.file(_image!, height: 150)
               : ElevatedButton(
-              onPressed: () async {
-                final image = await ImagePicker().pickImage(source: ImageSource.gallery);
-                if (image != null) setState(() => _image = File(image.path));
-              },
-              child: const Text('添加图片附件'),
-          ),
-         const SizedBox(height: 20),
+                  onPressed: () async {
+                    final image = await ImagePicker().pickImage(source: ImageSource.gallery);
+                    if (image != null) setState(() => _image = File(image.path));
+                  },
+                  child: const Text('添加图片附件'),
+                ),
+          const SizedBox(height: 20),
           ElevatedButton.icon(
-              onPressed: _isSending ? null : _sendLetter,
-              icon: _isSending
-              ? const SizedBox(
-                  width: 20,
-                  height: 20,
-                  child: CircularProgressIndicator(strokeWidth: 2),
-                )
-               : const Icon(Icons.send),
-              label: Text(_isSending ? '正在密封胶囊...' : '密封时间胶囊'),
+            onPressed: _isSending ? null : _sendLetter,
+            icon: _isSending
+                ? const SizedBox(
+                    width: 20,
+                    height: 20,
+                    child: CircularProgressIndicator(strokeWidth: 2),
+                  )
+                : const Icon(Icons.send),
+            label: Text(_isSending ? '正在密封胶囊...' : '密封时间胶囊'),
           ),
         ],
       ),

@@ -10,7 +10,7 @@ class ContactUsScreen extends StatelessWidget {
       backgroundColor: Colors.white,
       appBar: const PreferredSize(
           preferredSize: Size.fromHeight(kToolbarHeight),
-          child: GlobalAppBar(title: '关于我们', showBackButton: true)),
+          child: GlobalAppBar(title: '关于我们', showBackButton: true, actions: [],)),
       body: Padding(
         padding: const EdgeInsets.all(16.0),
         child: SingleChildScrollView(

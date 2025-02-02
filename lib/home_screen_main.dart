@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/animation.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'home_screen.dart';
 import 'global_appbar.dart';
@@ -28,7 +27,6 @@ class HomeScreenMain extends StatefulWidget {
 
 class _HomeScreenMainState extends State<HomeScreenMain> {
   int _selectedIndex = 0;
-  bool _isFirstLaunch = true;
   String _notificationText = '欢迎使用，开启你的跨校沟通之旅吧！';
 
   @override
@@ -55,7 +53,6 @@ class _HomeScreenMainState extends State<HomeScreenMain> {
         await prefs.setBool('isFirstLaunch', false);
       }
       setState(() {
-        _isFirstLaunch = false;
       });
     }
 
@@ -93,7 +90,7 @@ class _HomeScreenMainState extends State<HomeScreenMain> {
             padding: EdgeInsets.all(isMobile ? 16: 32),
               child: Column(
                   children: [
-                    const GlobalAppBar(title: '主页', showBackButton: false),
+                    const GlobalAppBar(title: '主页', showBackButton: false, actions: [],),
                       _buildNotificationCard(context), // 通知卡片
                     Expanded(child: _buildMainContent(context)), //主界面
                  ]
