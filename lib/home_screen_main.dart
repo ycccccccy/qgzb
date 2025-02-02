@@ -4,7 +4,8 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'home_screen.dart';
 import 'global_appbar.dart';
 import 'settings_screen.dart';
-import 'contact_us_screen.dart'; // Import the new screen
+import 'contact_us_screen.dart';
+import 'time_capsule_home.dart'; // Import the new screen
 
 // 常量定义
 const double _buttonSpacing = 20.0;
@@ -257,7 +258,7 @@ class _HomeScreenMainState extends State<HomeScreenMain> {
               onPressed: () {
                   _showConfirmDialog(context,
                       '确认跳转', '此功能仅限初三、高三学生使用', () {
-                        Navigator.push(context, _createPageRoute(() => const Page2()));
+                        Navigator.push(context, _createPageRoute(() => const TimeCapsuleHome()));
                       });
               },
             ),
