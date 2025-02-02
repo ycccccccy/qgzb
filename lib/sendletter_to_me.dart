@@ -1,12 +1,13 @@
 import 'dart:io';
+import 'dart:typed_data';
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:image/image.dart' as img;
 import 'package:image_picker/image_picker.dart';
 import 'package:intl/intl.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'global_appbar.dart';
-
 
 class SendToSelfPage extends StatefulWidget {
   const SendToSelfPage({super.key});
@@ -19,56 +20,79 @@ class _SendToSelfPageState extends State<SendToSelfPage> {
   final _messageController = TextEditingController();
   final _deliveryDateController = TextEditingController();
   File? _image;
+  bool _isSending = false;
 
   Future<void> _sendLetter() async {
-    final user = Supabase.instance.client.auth.currentUser;
-    if (user == null) throw '用户未登录';
+    if (_isSending) return;
+    setState(() => _isSending = true);
+    try {
+      final user = Supabase.instance.client.auth.currentUser;
+      if (user == null) throw '用户未登录';
 
-    // 压缩图片并上传到存储
-    String? imagePath;
-    if (_image != null) {
-      final compressedImage = await _compressImage(_image!);
-      imagePath = await _uploadImage(compressedImage);
+      // 压缩图片并上传到存储
+      String? imagePath;
+      if (_image != null) {
+         final compressedImage = await _compressImage(_image!);
+         imagePath = await _uploadImage(compressedImage);
+      }
+
+      // 存储信件
+      final letter = await Supabase.instance.client.from('letters').insert({
+        'sender_id': user.id,
+        'receiver_id': user.id, // 收件人即自己
+        'message': _messageController.text,
+        'delivery_date': _deliveryDateController.text,
+      }).select().single();
+
+      // 存储附件
+      if (imagePath != null) {
+        await Supabase.instance.client.from('attachments').insert({
+          'letter_id': letter['id'],
+          'file_path': imagePath,
+        });
+      }
+
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+        content: Text('信件已保存，将在指定时间送达！期待跨时空和亲爱的你再相见！'),
+      ));
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+        content: Text('发送失败: ${e.toString()}'),
+        backgroundColor: Colors.red,
+      ));
+    } finally {
+       setState(() => _isSending = false);
     }
-
-    // 存储信件
-    final letter = await Supabase.instance.client.from('letters').insert({
-      'sender_id': user.id,
-      'receiver_id': user.id, // 收件人即自己
-      'message': _messageController.text,
-      'delivery_date': _deliveryDateController.text,
-    }).select().single();
-
-    // 存储附件
-    if (imagePath != null) {
-      await Supabase.instance.client.from('attachments').insert({
-        'letter_id': letter['id'],
-        'file_path': imagePath,
-      });
-    }
-
-    ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-      content: Text('信件已保存，将在指定时间送达！期待跨时空和亲爱的你再相见！'),
-    ));
   }
 
-  // 图片压缩逻辑
-  Future<File> _compressImage(File image) async {
-    final imageDecoded = img.decodeImage(await image.readAsBytes())!;
-    final resized = img.copyResize(imageDecoded, width: 800);
-    final compressed = img.encodeJpg(resized, quality: 70);
-    return File(image.path).writeAsBytes(compressed);
+  // 图片压缩逻辑，使用 compute 在后台线程执行
+   Future<Uint8List> _compressImage(File image) async {
+    return compute(_compressImageInBackground, await image.readAsBytes());
   }
 
+  // 实际的压缩逻辑
+  static Uint8List _compressImageInBackground(List<int> imageBytes) {
+      final imageDecoded = img.decodeImage(Uint8List.fromList(imageBytes))!;
+      final resized = img.copyResize(imageDecoded, width: 800);
+      return Uint8List.fromList(img.encodeJpg(resized, quality: 70));
+  }
   // 上传到Supabase存储
-  Future<String> _uploadImage(File image) async {
-    final bytes = await image.readAsBytes();
-    final filePath = 'attachments/${DateTime.now().millisecondsSinceEpoch}.jpg';
-    await Supabase.instance.client.storage
-        .from('letters')
-        .upload(filePath, bytes as File);
-    return filePath;
+  Future<String> _uploadImage(Uint8List image) async {
+    try {
+     final filePath = 'attachments/${DateTime.now().millisecondsSinceEpoch}.jpg';
+     await Supabase.instance.client.storage
+          .from('letters')
+          .upload(filePath, image as File, fileOptions: const FileOptions(contentType: 'image/jpeg'));
+        return filePath;
+     } catch(e){
+        print('图片上传失败: $e');
+        ScaffoldMessenger.of(context).showSnackBar(
+           SnackBar(content: Text('图片上传失败: ${e.toString()}'), backgroundColor: Colors.red)
+        );
+        return '';
+     }
   }
+
 
   @override
   Widget build(BuildContext context) {
@@ -76,17 +100,17 @@ class _SendToSelfPageState extends State<SendToSelfPage> {
       backgroundColor: const Color(0xFFF5F5F5),
       appBar: null,
       body: SafeArea(
-          child: Padding(
+        child: Padding(
             padding: const EdgeInsets.all(16),
-              child: Column(
-                  children: [
-                    const GlobalAppBar(title: '给未来的自己',showBackButton: true),
-                  Expanded(
-                    child: _buildForm(),
-                  ),
-                  ]
-              )
-          ),
+            child: Column(
+              children: [
+                const GlobalAppBar(title: '给未来的自己', showBackButton: true),
+                Expanded(
+                  child: _buildForm(),
+                ),
+              ]
+            )
+        ),
       ),
     );
   }
@@ -107,13 +131,12 @@ class _SendToSelfPageState extends State<SendToSelfPage> {
             onTap: () async {
               final date = await showDatePicker(
                 context: context,
-                initialDate: DateTime.now(),
+                initialDate: DateTime.now().add(const Duration(days: 365)),
                 firstDate: DateTime.now(),
                 lastDate: DateTime(2030),
               );
-              if (date != null) {
-                _deliveryDateController.text =
-                    DateFormat('yyyy-MM-dd').format(date);
+                if (date != null) {
+                _deliveryDateController.text = DateFormat('yyyy-MM-dd').format(date);
               }
             },
             decoration: const InputDecoration(labelText: '选择送达日期'),
@@ -121,15 +144,23 @@ class _SendToSelfPageState extends State<SendToSelfPage> {
           _image != null
               ? Image.file(_image!, height: 150)
               : ElevatedButton(
-                  onPressed: () async {
-                    final image = await ImagePicker().pickImage(source: ImageSource.gallery);
-                    if (image != null) setState(() => _image = File(image.path));
-                  },
-                  child: const Text('添加图片附件'),
-                ),
-          ElevatedButton(
-            onPressed: _sendLetter,
-            child: const Text('密封时间胶囊'),
+              onPressed: () async {
+                final image = await ImagePicker().pickImage(source: ImageSource.gallery);
+                if (image != null) setState(() => _image = File(image.path));
+              },
+              child: const Text('添加图片附件'),
+          ),
+         const SizedBox(height: 20),
+          ElevatedButton.icon(
+              onPressed: _isSending ? null : _sendLetter,
+              icon: _isSending
+              ? const SizedBox(
+                  width: 20,
+                  height: 20,
+                  child: CircularProgressIndicator(strokeWidth: 2),
+                )
+               : const Icon(Icons.send),
+              label: Text(_isSending ? '正在密封胶囊...' : '密封时间胶囊'),
           ),
         ],
       ),

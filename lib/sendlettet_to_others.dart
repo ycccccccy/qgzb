@@ -1,6 +1,7 @@
 import 'dart:io';
 import 'dart:typed_data';
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:image/image.dart' as img;
 import 'package:image_picker/image_picker.dart';
@@ -29,27 +30,35 @@ class _SendToOthersPageState extends State<SendToOthersPage> {
   List<Map<String, dynamic>> _searchResults = [];
   bool _isSending = false;
 
-  // 图片压缩方法（复用）
+   // 图片压缩逻辑，使用 compute 在后台线程执行
   Future<Uint8List> _compressImage(File image) async {
-    final img.Image decodedImage = img.decodeImage(await image.readAsBytes())!;
-    final resized = img.copyResize(decodedImage, width: 800);
-    return img.encodeJpg(resized, quality: 70);
+    return compute(_compressImageInBackground, await image.readAsBytes());
   }
 
-  // 上传到Supabase存储
-  Future<String?> _uploadImage(File image) async {
+  // 实际的压缩逻辑
+  static Uint8List _compressImageInBackground(List<int> imageBytes) {
+      final img.Image image = img.decodeImage(Uint8List.fromList(imageBytes))!;
+      final img.Image resized = img.copyResize(image, width: 800);
+      return img.encodeJpg(resized, quality: 70);
+  }
+
+   // 上传到Supabase存储
+  Future<String?> _uploadImage(Uint8List image) async {
     try {
-      final compressed = await _compressImage(image);
       final filePath = 'attachments/${DateTime.now().millisecondsSinceEpoch}.jpg';
       await Supabase.instance.client.storage
           .from('letters')
-          .upload(filePath, compressed as File);
-      return filePath;
+          .upload(filePath, image as File, fileOptions: const FileOptions(contentType: 'image/jpeg'));
+       return filePath;
     } catch (e) {
       print('图片上传失败: $e');
+      ScaffoldMessenger.of(context).showSnackBar(
+           SnackBar(content: Text('图片上传失败: ${e.toString()}'), backgroundColor: Colors.red)
+      );
       return null;
     }
   }
+
 
   // 用户搜索逻辑
   Future<void> _searchUsers() async {
@@ -61,8 +70,7 @@ class _SendToOthersPageState extends State<SendToOthersPage> {
           .ilike('name', '%${_nameController.text}%')
           .eq('school', _schoolController.text)
           .eq('grade', _gradeController.text)
-          .eq('class', _classController.text)
-          ;
+          .eq('class', _classController.text);
 
       // 第二阶段：扩大范围到年级
       if (response.isEmpty) {
@@ -109,8 +117,13 @@ class _SendToOthersPageState extends State<SendToOthersPage> {
 
       // 处理图片附件
       String? imagePath;
-      if (_selectedImage != null) {
-        imagePath = await _uploadImage(_selectedImage!);
+       if (_selectedImage != null) {
+          final compressed = await _compressImage(_selectedImage!);
+         imagePath = await _uploadImage(compressed);
+        if(imagePath == null) {
+          setState(() => _isSending = false);
+          return; // 如果上传失败，直接返回
+        }
       }
 
       // 存储信件记录
@@ -168,31 +181,31 @@ class _SendToOthersPageState extends State<SendToOthersPage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-        backgroundColor: Colors.grey[200],
+      backgroundColor: Colors.grey[200],
       appBar: null,
       body: SafeArea(
-          child: Padding(
-            padding: const EdgeInsets.all(16.0),
-            child: Column(
-              children: [
-                const GlobalAppBar(title: '给他人写信', showBackButton: true),
-                Expanded(
-                    child: SingleChildScrollView(
-                      padding: const EdgeInsets.all(16),
-                      child: Column(
-                        children: [
-                          // 收件人搜索区
-                          _buildSearchSection(),
-                          const Divider(height: 40),
-                          // 信件内容区
-                          _buildLetterForm(),
-                        ],
-                      ),
-                    )
+        child: Padding(
+          padding: const EdgeInsets.all(16.0),
+          child: Column(
+            children: [
+              const GlobalAppBar(title: '给他人写信', showBackButton: true),
+              Expanded(
+                child: SingleChildScrollView(
+                  padding: const EdgeInsets.all(16),
+                  child: Column(
+                    children: [
+                      // 收件人搜索区
+                      _buildSearchSection(),
+                      const Divider(height: 40),
+                      // 信件内容区
+                      _buildLetterForm(),
+                    ],
+                  ),
                 )
-              ],
-            ),
+              )
+            ],
           ),
+        ),
       ),
     );
   }
@@ -351,22 +364,22 @@ class _SendToOthersPageState extends State<SendToOthersPage> {
     );
   }
 
-  Future<void> _pickImage() async {
+   Future<void> _pickImage() async {
     final image = await ImagePicker().pickImage(
       source: ImageSource.gallery,
       maxWidth: 1024,
       maxHeight: 1024,
       imageQuality: 85,
     );
-    if (image != null) {
-      final file = File(image.path);
+      if (image != null) {
+       final file = File(image.path);
       if (await file.length() > 1024 * 1024) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('图片大小超过1MB，请重新选择')),
-        );
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('图片大小超过1MB，请重新选择')),
+          );
         return;
       }
-      setState(() => _selectedImage = file);
+        setState(() => _selectedImage = file);
     }
   }
 }

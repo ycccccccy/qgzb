@@ -23,8 +23,8 @@ const String _selectedSchoolKey = 'selectedSchool';
 const String _selectedGradeKey = 'selectedGrade';
 const String _selectedClassKey = 'selectedClass';
 
-
 class LoginScreen extends StatefulWidget {
+  const LoginScreen({super.key});
   @override
   _LoginScreenState createState() => _LoginScreenState();
 }
@@ -41,7 +41,7 @@ class _LoginScreenState extends State<LoginScreen> {
   String? _selectedGrade;
   int? _selectedClass;
   String? _selectedClassName;
-   String? _selectedDistrict;
+  String? _selectedDistrict;
   String? _selectedSchool;
 
   @override
@@ -59,17 +59,17 @@ class _LoginScreenState extends State<LoginScreen> {
     super.dispose();
   }
 
-  void _updateClassValue() {
-    if (_selectedGrade != null && _selectedClass != null) {
-      setState(() {
-        _selectedClassName = '$_selectedGrade$_selectedClass班';
-      });
-    } else {
-      setState(() {
-        _selectedClassName = null;
-      });
+    void _updateClassValue() {
+      if (_selectedGrade != null && _selectedClass != null) {
+        setState(() {
+          _selectedClassName = '$_selectedGrade$_selectedClass班';
+        });
+      } else {
+        setState(() {
+          _selectedClassName = null;
+        });
+      }
     }
-  }
 
   Future<void> _loadRememberMe() async {
     final prefs = await SharedPreferences.getInstance();
@@ -87,7 +87,7 @@ class _LoginScreenState extends State<LoginScreen> {
       _selectedSchool = prefs.getString(_selectedSchoolKey);
       _selectedGrade = prefs.getString(_selectedGradeKey);
       _selectedClass = prefs.getInt(_selectedClassKey);
-      _updateClassValue();
+       _updateClassValue();
     });
   }
 
@@ -120,46 +120,55 @@ class _LoginScreenState extends State<LoginScreen> {
 
   void _onCaptchaCompleted(String value) {}
 
-   Future<(String?, String?, String?,String?, String?,int?)> _loadAutoLoginInfo() async {
-    final prefs = await SharedPreferences.getInstance();
-    final rememberedId = prefs.getString(_rememberedIdKey);
-    final rememberedName = prefs.getString(_rememberedNameKey);
-    final rememberedPassword = prefs.getString(_rememberedPasswordKey);
-     final selectedDistrict = prefs.getString(_selectedDistrictKey);
+    Future<(String?, String?, String?,String?, String?,int?)> _loadAutoLoginInfo() async {
+      final prefs = await SharedPreferences.getInstance();
+      final rememberedId = prefs.getString(_rememberedIdKey);
+      final rememberedName = prefs.getString(_rememberedNameKey);
+      final rememberedPassword = prefs.getString(_rememberedPasswordKey);
+      final selectedDistrict = prefs.getString(_selectedDistrictKey);
       final selectedSchool = prefs.getString(_selectedSchoolKey);
-       final selectedClass = prefs.getInt(_selectedClassKey);
-    return (rememberedId, rememberedName, rememberedPassword,selectedDistrict, selectedSchool,selectedClass);
-  }
+      final selectedClass = prefs.getInt(_selectedClassKey);
+      return (rememberedId, rememberedName, rememberedPassword,selectedDistrict, selectedSchool,selectedClass);
+    }
 
-  Future<void> _attemptAutoLogin() async {
+
+   Future<void> _attemptAutoLogin() async {
     final prefs = await SharedPreferences.getInstance();
     final bool autoLogin = prefs.getBool(_autoLoginKey) ?? false;
 
-    final (rememberedId, rememberedName, rememberedPassword,selectedDistrict,selectedSchool,selectedClass) =
-        await _loadAutoLoginInfo();
+     final (rememberedId, rememberedName, rememberedPassword,selectedDistrict,selectedSchool,selectedClass) =
+          await _loadAutoLoginInfo();
     if (autoLogin && rememberedId != null && rememberedName != null &&
         rememberedPassword != null && selectedDistrict != null &&
         selectedSchool != null && selectedClass != null) {
-      setState(() => _isLoading = true);
+       setState(() => _isLoading = true);
       try {
-        final isValid = await _verifyStudent(
-            studentId: rememberedId,
-            name: rememberedName,
-            className: '$_selectedGrade$_selectedClass班',
-            password: rememberedPassword,
-            school: selectedSchool,
+          final studentData = await _fetchStudentData(
+              rememberedId,
+              rememberedName,
+              selectedSchool
+          );
+          if (studentData == null) {
+            setState(() => _isLoading = false);
+            _showErrorSnackBar('自动登录失败，用户信息不存在');
+            return;
+          }
+        final isValid = await _handleNormalLogin(
+            rememberedPassword,
+            studentData,
         );
-        if (isValid) {
-          await prefs.setString(_currentUserIdKey, rememberedId);
-          Navigator.pushReplacement(
-              context, MaterialPageRoute(builder: (_) => HomeScreenMain()));
-        } else {
-          setState(() => _isLoading = false);
-        }
+          if(isValid){
+            await prefs.setString(_currentUserIdKey, rememberedId);
+           Navigator.pushReplacement(
+               context, MaterialPageRoute(builder: (_) => const HomeScreenMain()));
+         }else{
+           setState(() => _isLoading = false);
+           _showErrorSnackBar('自动登录失败，请重试');
+         }
       } catch (e) {
-        setState(() => _isLoading = false);
-        print('Error during auto login: $e');
-        _showErrorSnackBar('自动登录失败，请重试');
+          setState(() => _isLoading = false);
+          print('Error during auto login: $e');
+          _showErrorSnackBar('自动登录失败，请重试');
       }
     }
   }
@@ -193,7 +202,7 @@ class _LoginScreenState extends State<LoginScreen> {
         final prefs = await SharedPreferences.getInstance();
         await prefs.setString(_currentUserIdKey, studentId);
         Navigator.pushReplacement(
-            context, MaterialPageRoute(builder: (_) => HomeScreenMain()));
+            context, MaterialPageRoute(builder: (_) => const HomeScreenMain()));
       } else {
         _showErrorSnackBar('学号/姓名/班级或密码或学校错误');
       }
@@ -214,7 +223,6 @@ class _LoginScreenState extends State<LoginScreen> {
     }
   }
 
-
   Future<String?> _showCaptchaDialog() async {
     return showDialog<String>(
       context: context,
@@ -222,7 +230,7 @@ class _LoginScreenState extends State<LoginScreen> {
       builder: (context) {
         return AlertDialog(
           backgroundColor: Colors.grey[50],
-          title: Text('验证码验证',
+          title: const Text('验证码验证',
               textAlign: TextAlign.center,
               style: TextStyle(color: Colors.black87)),
           shape: RoundedRectangleBorder(
@@ -270,7 +278,7 @@ class _LoginScreenState extends State<LoginScreen> {
                   mainAxisSize: MainAxisSize.min,
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
-                    Text(
+                    const Text(
                       '欢迎登录',
                       style: TextStyle(
                           fontSize: 24,
@@ -278,7 +286,7 @@ class _LoginScreenState extends State<LoginScreen> {
                           color: Colors.blue),
                       textAlign: TextAlign.center,
                     ),
-                    SizedBox(height: 20),
+                    const SizedBox(height: 20),
                     buildTextFormField(
                         controller: _studentIdController,
                         labelText: '学号',
@@ -294,7 +302,7 @@ class _LoginScreenState extends State<LoginScreen> {
                           }
                           return null;
                         }),
-                    SizedBox(height: 16),
+                    const SizedBox(height: 16),
                     buildTextFormField(
                         controller: _nameController,
                         labelText: '姓名',
@@ -306,7 +314,7 @@ class _LoginScreenState extends State<LoginScreen> {
                           }
                           return null;
                         }),
-                     SizedBox(height: 16),
+                    const SizedBox(height: 16),
                       DropdownButtonFormField<String>(
                        decoration: InputDecoration(
                           labelText: '区',
@@ -336,7 +344,7 @@ class _LoginScreenState extends State<LoginScreen> {
                            return null;
                          },
                       ),
-                    SizedBox(height: 16),
+                    const SizedBox(height: 16),
                      DropdownButtonFormField<String>(
                        decoration: InputDecoration(
                           labelText: '学校',
@@ -367,7 +375,7 @@ class _LoginScreenState extends State<LoginScreen> {
                          return null;
                        },
                      ),
-                    SizedBox(height: 16),
+                    const SizedBox(height: 16),
                     Row(
                       children: [
                         Expanded(
@@ -399,7 +407,7 @@ class _LoginScreenState extends State<LoginScreen> {
                             onChanged: (value) {
                                  setState(() {
                                    _selectedGrade = value;
-                                  _updateClassValue();
+                                   _updateClassValue();
                                  });
 
                             },
@@ -411,7 +419,7 @@ class _LoginScreenState extends State<LoginScreen> {
                             },
                           ),
                         ),
-                        SizedBox(width: 16),
+                        const SizedBox(width: 16),
                         Expanded(
                           child: DropdownButtonFormField<int>(
                             decoration: InputDecoration(
@@ -447,7 +455,7 @@ class _LoginScreenState extends State<LoginScreen> {
                         ),
                       ],
                     ),
-                    SizedBox(height: 16),
+                    const SizedBox(height: 16),
                     buildTextFormField(
                         controller: _passwordController,
                         labelText: '密码',
@@ -473,7 +481,7 @@ class _LoginScreenState extends State<LoginScreen> {
                           }
                           return null;
                         }),
-                    SizedBox(height: 8),
+                    const SizedBox(height: 8),
                     Row(
                       children: [
                         Checkbox(
@@ -491,7 +499,7 @@ class _LoginScreenState extends State<LoginScreen> {
                           '记住我',
                           style: TextStyle(color: Colors.grey[600]),
                         ),
-                        SizedBox(width: 16),
+                        const SizedBox(width: 16),
                         Checkbox(
                           value: _autoLogin,
                           onChanged: (value) {
@@ -509,22 +517,22 @@ class _LoginScreenState extends State<LoginScreen> {
                         ),
                       ],
                     ),
-                    SizedBox(height: 16),
+                    const SizedBox(height: 16),
                     ElevatedButton(
                       onPressed: _isLoading ? null : _handleLogin,
                       style: ElevatedButton.styleFrom(
                         backgroundColor: Colors.blue,
-                        padding: EdgeInsets.symmetric(vertical: 14),
+                        padding: const EdgeInsets.symmetric(vertical: 14),
                         shape: RoundedRectangleBorder(
                             borderRadius: BorderRadius.circular(8)),
                       ),
                       child: _isLoading
-                          ? CircularProgressIndicator(color: Colors.white)
-                          : Text('登录',
+                          ? const CircularProgressIndicator(color: Colors.white)
+                          : const Text('登录',
                           style:
                           TextStyle(fontSize: 18, color: Colors.white)),
                     ),
-                    SizedBox(height: 10),
+                    const SizedBox(height: 10),
                     TextButton(
                       onPressed: () {
                         Navigator.push(
@@ -533,7 +541,7 @@ class _LoginScreenState extends State<LoginScreen> {
                               builder: (context) => RegisterScreen()),
                         );
                       },
-                      child: Text(
+                      child: const Text(
                         '没有账号？去注册',
                         style: TextStyle(color: Colors.blueGrey),
                       ),
@@ -600,8 +608,8 @@ class _LoginScreenState extends State<LoginScreen> {
        required String school,
   }) async {
     try {
-      final studentData = await _fetchStudentData(studentId, name,school);
-      if (studentData == null) {
+      final studentData = await _fetchStudentData(studentId, name, school,className: className);
+       if (studentData == null) {
         return false;
       }
       return _handleNormalLogin(password, studentData);
@@ -611,14 +619,17 @@ class _LoginScreenState extends State<LoginScreen> {
     }
   }
 
-    Future<Map<String, dynamic>?> _fetchStudentData(
-      String studentId, String name,String school) async {
-    final query = Supabase.instance.client
-        .from('students')
-        .select()
-        .eq('student_id', studentId)
-        .eq('name', name)
-         .eq('school', school);
+     Future<Map<String, dynamic>?> _fetchStudentData(
+      String studentId, String name,String school,{String? className}) async {
+     final query = Supabase.instance.client
+         .from('students')
+         .select()
+         .eq('student_id', studentId)
+         .eq('name', name)
+          .eq('school', school);
+     if(className != null){
+        query.eq('class_name',className);
+     }
     final response = await query;
     if (response.isEmpty) {
       return null;
