@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'sendletter_to_me.dart';
-import 'sendlettet_to_others.dart';
+import 'sendletter_to_others.dart';
 import 'global_appbar.dart';
 
 class TimeCapsuleHome extends StatelessWidget {
