@@ -26,6 +26,8 @@ const String _selectedClassKey = 'selectedClass';
 // 忘记密码的联系方式
 const String _contactInfo = '联系管理员：\n微信:\nx2463274\n邮箱:\n3646834681@qq.com\nliujingxuan200705@163.com';
 
+bool flg=false;
+
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
   @override
@@ -147,7 +149,7 @@ class _LoginScreenState extends State<LoginScreen> {
           await _loadAutoLoginInfo();
     if (autoLogin && rememberedId != null && rememberedName != null &&
         rememberedPassword != null && selectedDistrict != null &&
-        selectedSchool != null && selectedClass != null) {
+        selectedSchool != null && selectedClass != null&&!flg) {
        setState(() => _isLoading = true);
       try {
         final studentData = await _fetchStudentData(
@@ -181,6 +183,9 @@ class _LoginScreenState extends State<LoginScreen> {
           print('Error during auto login: $e');
           _showErrorSnackBar('自动登录失败，请重试');
       }
+    }
+    if(flg){
+        flg=false;
     }
   }
 

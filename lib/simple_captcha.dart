@@ -1,5 +1,6 @@
 import 'dart:math';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 
 class SimpleCaptcha extends StatefulWidget {
   final ValueChanged<String> onCompleted;
@@ -71,7 +72,11 @@ class _SimpleCaptchaState extends State<SimpleCaptcha> {
       ),
         SizedBox(height: 10),
         TextField(
-          controller: _textEditingController,
+          controller: _textEditingController,  
+          keyboardType: TextInputType.visiblePassword,
+          inputFormatters: [
+            FilteringTextInputFormatter.allow(RegExp(r'[a-zA-Z0-9]')), // 只允许英文和数字
+          ],       
           decoration: InputDecoration(
             hintText: '请输入验证码',
             filled: true,

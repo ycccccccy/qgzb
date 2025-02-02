@@ -4,6 +4,7 @@ import 'home_screen.dart';
 import 'global_appbar.dart';
 import 'settings_screen.dart';
 import 'contact_us_screen.dart';
+import 'login_screen.dart';
 import 'time_capsule_home.dart'; // Import the new screen
 
 // 常量定义
@@ -192,6 +193,19 @@ class _HomeScreenMainState extends State<HomeScreenMain> {
                 _updateSelectedIndex(2);
                 Navigator.push(
                     context, _createPageRoute(() => const ContactUsScreen()));
+              },
+            ),
+            ListTile(
+              leading:
+              const Icon(Icons.logout, color: _textColor, semanticLabel: "登出"),
+              title: const Text('登出', style: TextStyle(color: _textColor)),
+              selected: _selectedIndex == 3,
+              selectedTileColor: _primaryColor.withOpacity(0.1),
+              onTap: () {
+                _updateSelectedIndex(3);
+                flg=true;
+                Navigator.push(
+                    context, _createPageRoute(() => const LoginScreen()));
               },
             ),
           ],
@@ -393,20 +407,4 @@ void _showConfirmDialog(BuildContext context, String title, String content, Void
       );
     },
   );
-}
-
-class Page2 extends StatelessWidget {
-  const Page2({super.key});
-
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(
-        title: const Text('Page 2'),
-      ),
-      body: const Center(
-        child: Text('Welcome to Page 2!'),
-      ),
-    );
-  }
 }
