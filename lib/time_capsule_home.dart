@@ -42,7 +42,7 @@ class TimeCapsuleHome extends StatelessWidget {
           child: _buildCardButton(
             context,
             icon: Icons.mail_outline,
-            text: '给自己写信',
+            text: '给未来的自己',
             onPressed: () => Navigator.push(
               context,
               MaterialPageRoute(builder: (_) => const SendToSelfPage()),
@@ -54,7 +54,7 @@ class TimeCapsuleHome extends StatelessWidget {
            child: _buildCardButton(
             context,
             icon: Icons.send_outlined,
-            text: '给他人写信',
+            text: '给未来的Ta',
             onPressed: () => Navigator.push(
               context,
               MaterialPageRoute(builder: (_) => const SendToOthersPage()),

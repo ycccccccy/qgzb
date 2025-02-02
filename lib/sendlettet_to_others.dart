@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:io';
 import 'dart:typed_data';
 
@@ -8,6 +9,7 @@ import 'package:image_picker/image_picker.dart';
 import 'package:intl/intl.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'global_appbar.dart';
+import 'package:collection/collection.dart';
 
 class SendToOthersPage extends StatefulWidget {
   const SendToOthersPage({super.key});
@@ -29,67 +31,136 @@ class _SendToOthersPageState extends State<SendToOthersPage> {
   File? _selectedImage;
   List<Map<String, dynamic>> _searchResults = [];
   bool _isSending = false;
+  Timer? _debounceTimer;
 
-   // 图片压缩逻辑，使用 compute 在后台线程执行
+  // Supabase 客户端
+  final SupabaseClient _supabase = Supabase.instance.client;
+
+  @override
+  void dispose() {
+    _debounceTimer?.cancel();
+    super.dispose();
+  }
+
+  // 图片压缩逻辑
   Future<Uint8List> _compressImage(File image) async {
     return compute(_compressImageInBackground, await image.readAsBytes());
   }
 
-  // 实际的压缩逻辑
   static Uint8List _compressImageInBackground(List<int> imageBytes) {
-      final img.Image image = img.decodeImage(Uint8List.fromList(imageBytes))!;
-      final img.Image resized = img.copyResize(image, width: 800);
-      return img.encodeJpg(resized, quality: 70);
+    final image = img.decodeImage(Uint8List.fromList(imageBytes))!;
+    final resized = img.copyResize(image, width: 800);
+    return img.encodeJpg(resized, quality: 70);
   }
 
-   // 上传到Supabase存储
+  // 图片上传逻辑
   Future<String?> _uploadImage(Uint8List image) async {
     try {
       final filePath = 'attachments/${DateTime.now().millisecondsSinceEpoch}.jpg';
-      await Supabase.instance.client.storage
-          .from('letters')
+      await _supabase.storage
+          .from('Letters')
           .upload(filePath, image as File, fileOptions: const FileOptions(contentType: 'image/jpeg'));
-       return filePath;
+      return filePath;
     } catch (e) {
       print('图片上传失败: $e');
-      ScaffoldMessenger.of(context).showSnackBar(
-           SnackBar(content: Text('图片上传失败: ${e.toString()}'), backgroundColor: Colors.red)
-      );
       return null;
     }
   }
 
-
-  // 用户搜索逻辑
-  Future<void> _searchUsers() async {
+    Future<void> _searchUsers() async {
+    final stopwatch = Stopwatch()..start();
     try {
-      // 第一阶段：精确搜索（学校+年级+班级+姓名）
-      var response = await Supabase.instance.client
-          .from('users')
-          .select('id, name, school, grade, class')
-          .ilike('name', '%${_nameController.text}%')
-          .eq('school', _schoolController.text)
-          .eq('grade', _gradeController.text)
-          .eq('class', _classController.text);
+      final name = _nameController.text.trim();
+      final className = _classController.text.trim();
+      final school = _schoolController.text.trim();
 
-      // 第二阶段：扩大范围到年级
-      if (response.isEmpty) {
-        response = await Supabase.instance.client
-            .from('users')
-          .select('id, name, school, grade, class')
-          .ilike('name', '%${_nameController.text}%')
-          .eq('school', _schoolController.text)
-          .eq('grade', _gradeController.text);
+      if (name.isEmpty && className.isEmpty && school.isEmpty) {
+        setState(() {
+          _searchResults = [];
+        });
+        print('所有搜索字段为空，跳过搜索');
+        return;
       }
 
-      setState(() {
-        _searchResults = (response as List).cast<Map<String, dynamic>>();
-      });
-    } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('搜索失败: ${e.toString()}'), backgroundColor: Colors.red),
-      );
+      final queryBuilder = _supabase.from('students').select('''
+            id, 
+            name, 
+            class_name,
+            school
+          ''');
+
+
+     // 精确匹配优先
+        if (name.isNotEmpty) {
+        final exactMatch = await queryBuilder.or('''
+              name.like."$name"
+            ''').limit(20);
+
+       if ((exactMatch as List).isNotEmpty) {
+        setState(() {
+          _searchResults = (exactMatch).cast<Map<String, dynamic>>();
+        });
+        print('精确匹配成功，用时=${stopwatch.elapsedMilliseconds}ms');
+         return;
+       }
     }
+
+      // 构建 AND 条件
+      String andCondition = '';
+      final conditions = [];
+      if (name.isNotEmpty) {
+         conditions.add('name.ilike."%$name%"');
+      }
+      if (className.isNotEmpty) {
+        conditions.add('class_name.ilike."%$className%"');
+      }
+
+         if (school.isNotEmpty) {
+        conditions.add('school.ilike."%$school%"');
+      }
+       
+      if(conditions.isNotEmpty){
+          andCondition = conditions.join(' and ');
+           final response = await queryBuilder
+          .or(andCondition)
+           .limit(20);
+
+         setState(() {
+        _searchResults = (response as List).cast<Map<String, dynamic>>();
+         });
+       } else {
+            setState(() {
+            _searchResults = [];
+        });
+      }
+
+    print('模糊匹配成功: 返回记录数=${_searchResults.length}, 用时=${stopwatch.elapsedMilliseconds}ms');
+
+    } on PostgrestException catch (e) {
+      print('搜索发生 Supabase 异常: ${e.message}, 代码=${e.code}, 用时=${stopwatch.elapsedMilliseconds}ms');
+      _handleSearchError(e);
+    } catch (e) {
+      print('其他错误: $e, 用时=${stopwatch.elapsedMilliseconds}ms');
+      _handleSearchError(e);
+    } finally {
+      stopwatch.stop();
+    }
+  }
+  // 错误处理
+  void _handleSearchError(dynamic e) {
+    String message = '搜索失败，请稍后重试';
+    if (e is PostgrestException) {
+      message = e.code == '42P01' ? '系统维护中，请联系管理员' : '查询超时';
+    }
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text(message), backgroundColor: Colors.red),
+    );
+  }
+
+  // 防抖搜索
+  void _debounceSearch() {
+    _debounceTimer?.cancel();
+    _debounceTimer = Timer(const Duration(milliseconds: 5000), _searchUsers);
   }
 
   // 发送信件核心逻辑
@@ -98,37 +169,29 @@ class _SendToOthersPageState extends State<SendToOthersPage> {
     setState(() => _isSending = true);
 
     try {
-      // 验证发送者
-      final sender = Supabase.instance.client.auth.currentUser;
+      final sender = _supabase.auth.currentUser;
       if (sender == null) throw '请先登录';
 
-      // 处理收件人ID
       String receiverId;
       String? tempId;
       if (_searchResults.isNotEmpty) {
         receiverId = _searchResults.first['id'];
       } else {
-        // 生成临时唯一标识（学校_年级_班级_姓名_时间戳）
         tempId = 'temp_${_schoolController.text}_${_gradeController.text}_'
             '${_classController.text}_${_nameController.text}_'
             '${DateTime.now().millisecondsSinceEpoch}';
         receiverId = tempId;
       }
 
-      // 处理图片附件
-      String? imagePath;
-       if (_selectedImage != null) {
-          final compressed = await _compressImage(_selectedImage!);
-         imagePath = await _uploadImage(compressed);
-        if(imagePath == null) {
-          setState(() => _isSending = false);
-          return; // 如果上传失败，直接返回
-        }
+          String? imagePath;
+      if (_selectedImage != null) {
+        final compressed = await _compressImage(_selectedImage!);
+        imagePath = await _uploadImage(compressed);
+        if (imagePath == null) throw '图片上传失败';
       }
 
-      // 存储信件记录
-      final letterResponse = await Supabase.instance.client
-          .from('letters')
+     final letterResponse = await _supabase
+          .from('Letters')
           .insert({
             'sender_id': sender.id,
             'receiver_id': receiverId,
@@ -140,9 +203,8 @@ class _SendToOthersPageState extends State<SendToOthersPage> {
           .select()
           .single();
 
-      // 存储附件记录
       if (imagePath != null) {
-        await Supabase.instance.client
+        await _supabase
             .from('attachments')
             .insert({
               'letter_id': letterResponse['id'],
@@ -150,7 +212,6 @@ class _SendToOthersPageState extends State<SendToOthersPage> {
             });
       }
 
-      // 清空表单
       _clearForm();
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('✉️ 时间胶囊已密封！将在指定时间送达')),
@@ -164,10 +225,10 @@ class _SendToOthersPageState extends State<SendToOthersPage> {
     }
   }
 
-  // 清空表单内容
+  // 清空表单
   void _clearForm() {
     _nameController.clear();
-    _schoolController.clear();
+     _schoolController.clear();
     _gradeController.clear();
     _classController.clear();
     _messageController.clear();
@@ -182,7 +243,6 @@ class _SendToOthersPageState extends State<SendToOthersPage> {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: Colors.grey[200],
-      appBar: null,
       body: SafeArea(
         child: Padding(
           padding: const EdgeInsets.all(16.0),
@@ -194,15 +254,13 @@ class _SendToOthersPageState extends State<SendToOthersPage> {
                   padding: const EdgeInsets.all(16),
                   child: Column(
                     children: [
-                      // 收件人搜索区
                       _buildSearchSection(),
                       const Divider(height: 40),
-                      // 信件内容区
                       _buildLetterForm(),
                     ],
                   ),
-                )
-              )
+                ),
+              ),
             ],
           ),
         ),
@@ -210,7 +268,7 @@ class _SendToOthersPageState extends State<SendToOthersPage> {
     );
   }
 
-  Widget _buildSearchSection() {
+   Widget _buildSearchSection() {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
@@ -220,9 +278,10 @@ class _SendToOthersPageState extends State<SendToOthersPage> {
           controller: _nameController,
           decoration: const InputDecoration(
             labelText: '姓名',
-            hintText: '请输入完整姓名',
-            prefixIcon: Icon(Icons.person),
+            hintText: '请输入姓名',
+            prefixIcon: Icon(Icons.search),
           ),
+          onChanged: (value) => _debounceSearch(),
         ),
         const SizedBox(height: 10),
         TextField(
@@ -233,44 +292,33 @@ class _SendToOthersPageState extends State<SendToOthersPage> {
           ),
         ),
         const SizedBox(height: 10),
-        Row(
-          children: [
-            Expanded(
-              child: TextField(
-                controller: _gradeController,
-                decoration: const InputDecoration(
-                  labelText: '年级',
-                  prefixIcon: Icon(Icons.class_),
-                ),
-                keyboardType: TextInputType.number,
-              ),
-            ),
-            const SizedBox(width: 10),
-            Expanded(
-              child: TextField(
-                controller: _classController,
-                decoration: const InputDecoration(
-                  labelText: '班级',
-                  prefixIcon: Icon(Icons.group),
-                ),
-                keyboardType: TextInputType.number,
-              ),
-            ),
-          ],
+        TextField(
+          controller: _classController,
+          decoration: const InputDecoration(
+            labelText: '班级',
+            prefixIcon: Icon(Icons.group),
+          ),
         ),
         const SizedBox(height: 15),
         ElevatedButton.icon(
           icon: const Icon(Icons.search),
-          label: const Text('搜索收件人'),
+          label: const Text('智能搜索'),
           onPressed: _searchUsers,
         ),
         const SizedBox(height: 15),
         if (_searchResults.isNotEmpty)
           ..._searchResults.map((user) => Card(
             child: ListTile(
-              leading: CircleAvatar(child: Text(user['name'][0])),
-              title: Text(user['name']),
-              subtitle: Text('${user['school']} ${user['grade']}年级${user['class']}班'),
+              leading: CircleAvatar(
+                child: Text(
+                  user['name'] != null && user['name'] is String && user['name'].isNotEmpty
+                      ? user['name'][0]
+                      : '',
+                ),
+              ),
+              title: Text.rich(_highlightMatches(user['name'])),
+              subtitle: Text.rich(_highlightMatches(
+                  '${user['school']} ${user['class_name']} ')),
               trailing: IconButton(
                 icon: const Icon(Icons.check_circle, color: Colors.green),
                 onPressed: () => setState(() => _searchResults = [user]),
@@ -280,14 +328,44 @@ class _SendToOthersPageState extends State<SendToOthersPage> {
         if (_searchResults.isEmpty && _nameController.text.isNotEmpty)
           Card(
             color: Colors.amber[50],
-            child: ListTile(
-              leading: const Icon(Icons.info, color: Colors.amber),
-              title: const Text('未找到匹配用户'),
-              subtitle: const Text('信件将暂存服务器，当对方注册时会自动送达'),
+            child: const ListTile(
+              leading: Icon(Icons.info, color: Colors.amber),
+              title: Text('未找到匹配用户'),
+              subtitle: Text('信件将暂存服务器，当对方注册时会自动送达'),
             ),
           ),
       ],
     );
+  }
+
+    // 关键词高亮组件
+  TextSpan _highlightMatches(String text) {
+    final query = _nameController.text.toLowerCase();
+    final matches = query.split(' ');
+    final spans = <TextSpan>[];
+    int lastIndex = 0;
+
+     for (final match in matches) {
+      if (match.isEmpty) continue;
+        final index = text.toLowerCase().indexOf(match);
+        if (index != -1) {
+        spans.add(TextSpan(
+          text: text.substring(lastIndex, index),
+          style: TextStyle(color: Colors.grey[600]),
+        ));
+        spans.add(TextSpan(
+          text: text.substring(index, index + match.length),
+          style: TextStyle(
+              color: Colors.blue[700], fontWeight: FontWeight.bold),
+        ));
+         lastIndex = index + match.length;
+       }
+     }
+     spans.add(TextSpan(
+      text: text.substring(lastIndex),
+      style: TextStyle(color: Colors.grey[600]),
+    ));
+    return TextSpan(children: spans);
   }
 
   Widget _buildLetterForm() {
@@ -364,22 +442,22 @@ class _SendToOthersPageState extends State<SendToOthersPage> {
     );
   }
 
-   Future<void> _pickImage() async {
+  Future<void> _pickImage() async {
     final image = await ImagePicker().pickImage(
       source: ImageSource.gallery,
       maxWidth: 1024,
       maxHeight: 1024,
-      imageQuality: 85,
+     
     );
-      if (image != null) {
-       final file = File(image.path);
-      if (await file.length() > 1024 * 1024) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('图片大小超过1MB，请重新选择')),
-          );
+    if (image != null) {
+      final file = File(image.path);
+      if (await file.length() > 5 * 1024 * 1024) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('图片大小超过5MB，请重新选择')),
+        );
         return;
       }
-        setState(() => _selectedImage = file);
+      setState(() => _selectedImage = file);
     }
   }
 }

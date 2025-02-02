@@ -1,13 +1,35 @@
 import 'dart:io';
-import 'dart:typed_data';
-
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
-import 'package:image/image.dart' as img;
-import 'package:image_picker/image_picker.dart';
 import 'package:intl/intl.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'global_appbar.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+import 'package:image_picker/image_picker.dart';
+import 'package:path/path.dart' as path;
+import 'package:provider/provider.dart'; // 引入 Provider
+
+
+class UserData with ChangeNotifier{
+   String? currentUserId;
+   String? rememberedId;
+   String? rememberedName;
+
+  void clear(){
+     currentUserId = null;
+     rememberedId = null;
+     rememberedName = null;
+       notifyListeners();
+  }
+
+  void setUserData(String currentUserId, String? rememberedId, String? rememberedName){
+       this.currentUserId = currentUserId;
+       this.rememberedId = rememberedId;
+       this.rememberedName = rememberedName;
+       notifyListeners();
+  }
+
+}
 
 class SendToSelfPage extends StatefulWidget {
   const SendToSelfPage({super.key});
@@ -19,96 +41,177 @@ class SendToSelfPage extends StatefulWidget {
 class _SendToSelfPageState extends State<SendToSelfPage> {
   final _messageController = TextEditingController();
   final _deliveryDateController = TextEditingController();
-  File? _image;
   bool _isSending = false;
-  final SupabaseClient _supabase = Supabase.instance.client;
+  final _formKey = GlobalKey<FormState>();
+  XFile? _selectedImage;
+  String? _imageUrl; // 用于存储上传后的图片 URL
+
+  static const Color backgroundColor = Color(0xFFF5F5F5);
+  static const EdgeInsets padding = EdgeInsets.all(16);
+  static const double buttonHeight = 48;
+  static const double spacing = 16;
+
+   @override
+  void initState() {
+    super.initState();
+       _loadUserData();
+  }
+
+   Future<void> _loadUserData() async {
+      final prefs = await SharedPreferences.getInstance();
+      final String? currentUserId = prefs.getString('current_user_id');
+         final String? rememberedId = prefs.getString('rememberedId');
+          final String? rememberedName = prefs.getString('rememberedName');
+
+         if (currentUserId == null || rememberedId == null || rememberedName == null) {
+           print('Error: current_user_id is null in SharedPreferences');
+             _showErrorSnackBar('获取用户信息失败，请重新登录');
+            _clearUserDataAndRedirect();
+            return;
+        }
+          final userData = Provider.of<UserData>(context, listen: false);
+          userData.setUserData(currentUserId, rememberedId, rememberedName);
+
+    }
+
+    void _clearUserDataAndRedirect() async{
+       final prefs = await SharedPreferences.getInstance();
+        final userData = Provider.of<UserData>(context, listen: false);
+      await prefs.remove('current_user_id');
+      await prefs.remove('rememberedName');
+      await prefs.remove('rememberedId');
+        userData.clear();
+      _redirectToLogin();
+    }
+
+    void _redirectToLogin() {
+        if (mounted){
+           Navigator.of(context).pushReplacementNamed('/login');
+        }
+     }
+  @override
+  void dispose() {
+    _messageController.dispose();
+    _deliveryDateController.dispose();
+    super.dispose();
+  }
 
   Future<void> _sendLetter() async {
     if (_isSending) return;
+    if (!_formKey.currentState!.validate()) {
+      _showErrorSnackBar('请填写所有必填项！');
+      return;
+    }
+    final userData = Provider.of<UserData>(context, listen: false);
+      if (userData.currentUserId == null){
+         _showErrorSnackBar('获取用户信息失败，请重新登录');
+         return;
+      }
     setState(() => _isSending = true);
     try {
-      // 确保用户会话有效
-      final session = _supabase.auth.currentSession;
-      if (session == null) throw '用户未登录或会话已过期';
+       await _uploadImage();
 
-      final user = _supabase.auth.currentUser;
-      if (user == null) throw '用户信息获取失败';
-
-      // 压缩图片并上传到存储
-      String? imagePath;
-      if (_image != null) {
-        final compressedImage = await _compressImage(_image!);
-        imagePath = await _uploadImage(compressedImage);
-        if (imagePath.isEmpty) throw '图片上传失败';
-      }
-
-      // 存储信件（使用新语法）
-      final letterResponse = await _supabase
-          .from('Letters')
-          .insert({
-            'sender_id': user.id,
-            'receiver_id': user.id,
-            'message': _messageController.text,
-            'delivery_date': _deliveryDateController.text,
-          })
-          .select()
-          .single();
-
-      // 存储附件
-      if (imagePath != null) {
-        await _supabase.from('attachments').insert({
-          'letter_id': letterResponse['id'],
-          'file_path': imagePath,
-        });
-      }
-
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-        content: Text('信件已保存，将在指定时间送达！期待跨时空和亲爱的你再相见！'),
-      ));
+      await _storeLetter(userData.currentUserId!);
+      _showSuccessSnackBar('信件已保存，将在指定时间送达！期待跨时空和亲爱的你再相见！');
+      Navigator.pop(context);
     } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-        content: Text('发送失败: ${e.toString()}'),
-        backgroundColor: Colors.red,
-      ));
+      _showErrorSnackBar('发送失败: ${e.toString()}');
     } finally {
       setState(() => _isSending = false);
     }
   }
 
-  Future<Uint8List> _compressImage(File image) async {
-    return compute(_compressImageInBackground, await image.readAsBytes());
-  }
-
-  static Uint8List _compressImageInBackground(List<int> imageBytes) {
-    final imageDecoded = img.decodeImage(Uint8List.fromList(imageBytes))!;
-    final resized = img.copyResize(imageDecoded, width: 800);
-    return Uint8List.fromList(img.encodeJpg(resized, quality: 70));
-  }
-
-  Future<String> _uploadImage(Uint8List image) async {
+  Future<void> _storeLetter(String userId) async {
     try {
-      final filePath = 'attachments/${DateTime.now().millisecondsSinceEpoch}.jpg';
-      await _supabase.storage
+        final letter = await Supabase.instance.client
           .from('Letters')
-          .upload(filePath, image as File, fileOptions: const FileOptions(contentType: 'image/jpeg'));
-      return filePath;
-    } catch (e) {
-      print('图片上传失败: $e');
-      return '';
+          .insert({
+        'sender_id': userId,
+        'receiver_id': userId,
+        'message': _messageController.text,
+        'delivery_date': _deliveryDateController.text,
+        'attachment_url': _imageUrl, // 保存图片 URL
+      })
+          .select()
+          .single();
+        //print('Supabase letter insert result: $letter');
+    } on PostgrestException catch (e) {
+      //print('Supabase letter insert error: $e');
+      throw '发送失败：$e';
     }
+  }
+
+        Future<void> _uploadImage() async {
+      if (_selectedImage == null) return; // 如果没有选择图片，则不上传
+
+      try {
+          final imageName = path.basename(_selectedImage!.path);
+          final imagePath = 'letters/$imageName'; // 设置上传路径
+          if (kIsWeb) {
+                 final String imageUrl = Supabase.instance.client.storage.from('letter-attachments').getPublicUrl(imagePath);
+                 setState(() {
+                    _imageUrl = imageUrl;
+                 });
+                 //print('Image upload success: $imageUrl');
+                         }else{
+                 final String imageUrl = Supabase.instance.client.storage.from('letter-attachments').getPublicUrl(imagePath);
+                 setState(() {
+                    _imageUrl = imageUrl;
+                 });
+                 //print('Image upload success: $imageUrl');
+                         }
+
+
+      } catch (e) {
+        //print('Image upload error: $e');
+       _showErrorSnackBar('图片上传失败，请重试');
+      }
+    }
+    
+    Future<void> _pickImage() async {
+      final ImagePicker picker = ImagePicker();
+      final XFile? pickedFile = await picker.pickImage(source: ImageSource.gallery);
+      if (pickedFile != null) {
+        setState(() {
+          _selectedImage = pickedFile;
+        });
+      }
+    }
+  void _showErrorSnackBar(String message) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(message),
+        backgroundColor: Colors.red,
+      ),
+    );
+  }
+
+  void _showSuccessSnackBar(String message) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(message),
+        backgroundColor: Colors.green,
+      ),
+    );
   }
 
   @override
   Widget build(BuildContext context) {
+      final userData = Provider.of<UserData>(context);
     return Scaffold(
-      backgroundColor: const Color(0xFFF5F5F5),
+      backgroundColor: backgroundColor,
       body: SafeArea(
         child: Padding(
-          padding: const EdgeInsets.all(16),
+          padding: padding,
           child: Column(
             children: [
-              const GlobalAppBar(title: '给未来的自己', showBackButton: true, actions: [],),
-              Expanded(child: _buildForm()),
+              const GlobalAppBar(
+                title: '给未来的自己',
+                showBackButton: true,
+                actions: [],
+              ),
+             Expanded(child:userData.currentUserId == null ? const Center(child: CircularProgressIndicator()): _buildForm())
+
             ],
           ),
         ),
@@ -117,53 +220,116 @@ class _SendToSelfPageState extends State<SendToSelfPage> {
   }
 
   Widget _buildForm() {
-    return SingleChildScrollView(
-      padding: const EdgeInsets.all(16),
-      child: Column(
-        children: [
-          TextField(
-            controller: _messageController,
-            maxLines: 5,
-            decoration: const InputDecoration(labelText: '写下你对未来自己的心声与祝福'),
-          ),
-          TextField(
+    return Form(
+      key: _formKey,
+      child: SingleChildScrollView(
+        padding: padding,
+        child: Column(
+          children: [
+            _buildMessageTextField(),
+            const SizedBox(height: spacing),
+            _buildDeliveryDatePicker(),
+             const SizedBox(height: spacing),
+             _buildImagePicker(),
+            const SizedBox(height: spacing * 2),
+            _buildSendButton(),
+          ],
+        ),
+      ),
+    );
+  }
+   Widget _buildImagePicker() {
+      return  Row(
+          children: [
+              Expanded(
+                child: Container(
+                   decoration: BoxDecoration(
+                     border: Border.all(color: Colors.grey[300]!),
+                    borderRadius: BorderRadius.circular(8)
+                  ),
+                  height: 150,
+                   child: InkWell(
+                      onTap: _pickImage,
+                      child: _selectedImage == null
+                          ? const Center(child:  Icon(Icons.add_a_photo, size: 40, color: Colors.black45,))
+                           :
+                           kIsWeb
+                           ? Image.network(_selectedImage!.path, fit: BoxFit.cover, )
+                                :Image.file(File(_selectedImage!.path), fit: BoxFit.cover),
+
+                    ),
+                  ),
+              ),
+
+          ],
+      );
+   }
+
+  Widget _buildMessageTextField() {
+    return TextFormField(
+      controller: _messageController,
+      maxLines: 5,
+      decoration: const InputDecoration(
+        labelText: '写下你对未来自己的心声与祝福',
+        border: OutlineInputBorder(),
+      ),
+      validator: (value) {
+        if (value == null || value.isEmpty) {
+          return '请输入您的心声！';
+        }
+        return null;
+      },
+    );
+  }
+
+  Widget _buildDeliveryDatePicker() {
+    return InkWell(
+        onTap: () async {
+          final date = await showDatePicker(
+            context: context,
+            initialDate: DateTime.now().add(const Duration(days: 365)),
+            firstDate: DateTime.now(),
+            lastDate: DateTime(2030),
+          );
+          if (date != null) {
+            _deliveryDateController.text = DateFormat('yyyy-MM-dd').format(date);
+          }
+        },
+        child: IgnorePointer(
+          child: TextFormField(
             controller: _deliveryDateController,
-            readOnly: true,
-            onTap: () async {
-              final date = await showDatePicker(
-                context: context,
-                initialDate: DateTime.now().add(const Duration(days: 365)),
-                firstDate: DateTime.now(),
-                lastDate: DateTime(2030),
-              );
-              if (date != null) {
-                _deliveryDateController.text = DateFormat('yyyy-MM-dd').format(date);
+            decoration: const InputDecoration(
+              labelText: '选择送达日期',
+              border: OutlineInputBorder(),
+            ),
+            validator: (value) {
+              if (value == null || value.isEmpty) {
+                return '请选择送达日期！';
               }
+              return null;
             },
-            decoration: const InputDecoration(labelText: '选择送达日期'),
           ),
-          _image != null
-              ? Image.file(_image!, height: 150)
-              : ElevatedButton(
-                  onPressed: () async {
-                    final image = await ImagePicker().pickImage(source: ImageSource.gallery);
-                    if (image != null) setState(() => _image = File(image.path));
-                  },
-                  child: const Text('添加图片附件'),
-                ),
-          const SizedBox(height: 20),
-          ElevatedButton.icon(
-            onPressed: _isSending ? null : _sendLetter,
-            icon: _isSending
-                ? const SizedBox(
-                    width: 20,
-                    height: 20,
-                    child: CircularProgressIndicator(strokeWidth: 2),
-                  )
-                : const Icon(Icons.send),
-            label: Text(_isSending ? '正在密封胶囊...' : '密封时间胶囊'),
-          ),
-        ],
+        ));
+  }
+
+  Widget _buildSendButton() {
+    return SizedBox(
+      width: double.infinity,
+      height: buttonHeight,
+      child: ElevatedButton.icon(
+        onPressed: _isSending ? null : _sendLetter,
+        icon: _isSending
+            ? const SizedBox(
+          width: 20,
+          height: 20,
+          child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+        )
+            : const Icon(Icons.send, color: Colors.white),
+        label: Text(_isSending ? '正在密封胶囊...' : '密封时间胶囊',
+            style: const TextStyle(color: Colors.white)),
+        style: ElevatedButton.styleFrom(
+          backgroundColor: Colors.blue,
+        ),
       ),
     );
   }
