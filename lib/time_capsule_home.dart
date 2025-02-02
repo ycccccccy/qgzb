@@ -18,7 +18,7 @@ class TimeCapsuleHome extends StatelessWidget {
             padding: EdgeInsets.all(isMobile ? 16 : 32),
           child: Column(
             children: [
-              const GlobalAppBar(title: '时间胶囊', showBackButton: true),
+              const GlobalAppBar(title: '时空胶囊', showBackButton: true),
               Expanded(
                 child: Center(
                   child: _buildButtons(context),
