@@ -123,7 +123,7 @@ class _SendToSelfPageState extends State<SendToSelfPage> {
 
   Future<void> _storeLetter(String userId) async {
     try {
-        final letter = await Supabase.instance.client
+        await Supabase.instance.client
           .from('Letters')
           .insert({
         'sender_id': userId,
@@ -131,9 +131,7 @@ class _SendToSelfPageState extends State<SendToSelfPage> {
         'message': _messageController.text,
         'delivery_date': _deliveryDateController.text,
         'attachment_url': _imageUrl, // 保存图片 URL
-      })
-          .select()
-          .single();
+      });
         //print('Supabase letter insert result: $letter');
     } on PostgrestException catch (e) {
       //print('Supabase letter insert error: $e');
