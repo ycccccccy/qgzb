@@ -71,7 +71,7 @@ class _EggPageState extends State<EggPage> {
                   BlendMode.srcOver,
                 ),
                 child: Image.asset(
-                  '../assets/images/starry_sky.jpg',
+                  'assets/images/starry_sky.jpg',
                   fit: BoxFit.cover,
                 ),
               ),
@@ -83,6 +83,7 @@ class _EggPageState extends State<EggPage> {
               builder: (BuildContext context, BoxConstraints constraints) {
                 final screenWidth = constraints.maxWidth;
                 final baseFontSize = screenWidth * 0.035;
+                const double maxBottomFontSize = 18.0; // 设置底部文字最大字体大小
 
                 return Stack(
                   children: [
@@ -92,7 +93,7 @@ class _EggPageState extends State<EggPage> {
                         textAlign: TextAlign.center,
                         style: TextStyle(
                           color: Colors.white,
-                          fontSize: baseFontSize * 1.5,
+                          fontSize: baseFontSize * 1.5, // 中间文字继续缩放
                           fontWeight: FontWeight.bold,
                           shadows: [
                             Shadow(
@@ -105,7 +106,7 @@ class _EggPageState extends State<EggPage> {
                       ),
                     ),
                     Positioned(
-                      bottom: screenWidth * 0.1, // 距离底部 10% 的屏幕宽度
+                      bottom: screenWidth * 0.05, // 距离底部 10% 屏幕宽度
                       left: 0,
                       right: 0,
                       child: Column(
@@ -115,7 +116,7 @@ class _EggPageState extends State<EggPage> {
                             textAlign: TextAlign.center,
                             style: TextStyle(
                               color: Colors.white,
-                              fontSize: baseFontSize,
+                              fontSize: min(baseFontSize, maxBottomFontSize), // 底部文字限制大小
                             ),
                           ),
                           SizedBox(height: screenWidth * 0.02),
@@ -124,7 +125,7 @@ class _EggPageState extends State<EggPage> {
                             textAlign: TextAlign.center,
                             style: TextStyle(
                               color: Colors.white,
-                              fontSize: baseFontSize,
+                              fontSize: min(baseFontSize, maxBottomFontSize), // 底部文字限制大小
                             ),
                           ),
                         ],
@@ -140,6 +141,7 @@ class _EggPageState extends State<EggPage> {
     );
   }
 }
+
 class Star {
   double x;
   double y;
@@ -232,7 +234,7 @@ class _StarWidgetState extends State<StarWidget>
         child: Icon(
           Icons.star,
           size: widget.star.size,
-          color: const Color(0xFFE0E0E0).withOpacity(widget.star.opacity),  
+          color: const Color(0xFFE0E0E0).withOpacity(widget.star.opacity),
         ),
       ),
     );

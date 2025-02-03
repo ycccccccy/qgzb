@@ -8,7 +8,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:path/path.dart' as path;
 import 'package:provider/provider.dart'; // 引入 Provider
-import 'package:qgzb/user_data.dart';
+import 'package:hhxj/user_data.dart';
 
 
 class SendToSelfPage extends StatefulWidget {
