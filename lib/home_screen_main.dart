@@ -180,7 +180,7 @@ class _HomeScreenMainState extends State<HomeScreenMain> {
               onTap: () {
                 _updateSelectedIndex(1);
                 Navigator.push(
-                    context, _createPageRoute(() => SettingsScreen()));
+                    context, _createPageRoute(() => const SettingsScreen()));
               },
             ),
             ListTile(

@@ -3,7 +3,7 @@ import 'package:intl/intl.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'user_data.dart';
 import 'package:provider/provider.dart';
-import 'package:flutter/foundation.dart'; // 引入 foundation 包
+// 引入 foundation 包
 import 'package:shared_preferences/shared_preferences.dart'; // 引入 SharedPreferences
 
 class InboxPage extends StatefulWidget {

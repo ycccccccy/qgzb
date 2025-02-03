@@ -155,7 +155,7 @@ class _SendToOthersPageState extends State<SendToOthersPage> {
 
       final response = await queryBuilder
           .limit(20)
-          .withConverter((data) => data.map((e) => e as Map<String,dynamic>).toList())
+          .withConverter((data) => data.map((e) => e).toList())
           .timeout(const Duration(seconds: 3));
 
        final highlightQuery = name.toLowerCase();

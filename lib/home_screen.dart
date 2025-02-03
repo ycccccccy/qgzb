@@ -84,7 +84,7 @@ class _HomeScreenState extends State<HomeScreen> {
                   _updateSelectedIndex(1);
                    Navigator.pop(context);
                    Navigator.of(context).push(
-                       MaterialPageRoute(builder: (_) => SendLetterScreen()));
+                       MaterialPageRoute(builder: (_) => const SendLetterScreen()));
                    }
                ),
                _buildDrawerItem(
@@ -95,7 +95,7 @@ class _HomeScreenState extends State<HomeScreen> {
                   _updateSelectedIndex(2);
                   Navigator.pop(context);
                    Navigator.of(context).push(
-                       MaterialPageRoute(builder: (_) => SettingsScreen()));
+                       MaterialPageRoute(builder: (_) => const SettingsScreen()));
                  }
                ),
             ],
@@ -158,7 +158,7 @@ class _HomeScreenState extends State<HomeScreen> {
             valueNotifier: _dataService.unreadLetterCountNotifier,
             onTap: () {
               Navigator.push(
-                  context, MaterialPageRoute(builder: (_) => UnreadLetterScreen()));
+                  context, MaterialPageRoute(builder: (_) => const UnreadLetterScreen()));
             }),
         _buildDashboardCard(
           context,
@@ -176,7 +176,7 @@ class _HomeScreenState extends State<HomeScreen> {
              valueNotifier: ValueNotifier(''),
             onTap: () {
               Navigator.push(
-                  context, MaterialPageRoute(builder: (_) => SendLetterScreen()));
+                  context, MaterialPageRoute(builder: (_) => const SendLetterScreen()));
             }),
         _buildContactsCard(context),
       ],

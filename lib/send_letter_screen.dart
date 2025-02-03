@@ -213,7 +213,7 @@ class _SendLetterScreenState extends State<SendLetterScreen> {
 
 
       final response = await queryBuilder
-          .withConverter((data) => data.map((e) => e as Map<String,dynamic>).toList())
+          .withConverter((data) => data.map((e) => e).toList())
           .timeout(const Duration(seconds: 3));
 
 
@@ -270,7 +270,7 @@ class _SendLetterScreenState extends State<SendLetterScreen> {
   }
 // 防抖搜索
   void _debounceSearch() {
-    final currentSearchConditions = '${_receiverNameController.text.trim()}';
+    final currentSearchConditions = _receiverNameController.text.trim();
     if (currentSearchConditions == _lastSearchConditions) {
       print('搜索条件没有变化，跳过搜索');
       return;
@@ -441,8 +441,8 @@ class _SendLetterScreenState extends State<SendLetterScreen> {
                     if (_searchResults.isNotEmpty) // Show search results if not empty
                       LayoutBuilder(
                         builder: (context, constraints) {
-                          final itemHeight = 52.0;
-                          final maxListHeight = 200.0;
+                          const itemHeight = 52.0;
+                          const maxListHeight = 200.0;
                           double calculatedHeight;
 
                           if (_searchResults.length == 1) {
@@ -514,8 +514,8 @@ class _SendLetterScreenState extends State<SendLetterScreen> {
                         ),
                         child:  ListTile(
                           contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-                          leading: Icon(Icons.info_outline, color: Colors.black87), // 修改图标颜色为黑色
-                          title: Text('未找到匹配用户', style: TextStyle(color: Colors.black87)), // 修改文字颜色为黑色
+                          leading: const Icon(Icons.info_outline, color: Colors.black87), // 修改图标颜色为黑色
+                          title: const Text('未找到匹配用户', style: TextStyle(color: Colors.black87)), // 修改文字颜色为黑色
                           subtitle: Text('信件将暂存服务器，当对方注册时会自动送达', style: TextStyle(color: Colors.grey[600])),
                         ),
                       ),
@@ -530,7 +530,7 @@ class _SendLetterScreenState extends State<SendLetterScreen> {
                         elevation: 1,
                         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                         margin: const EdgeInsets.only(bottom: 12, top: 8),
-                        color: Theme.of(context).colorScheme.surfaceVariant,
+                        color: Theme.of(context).colorScheme.surfaceContainerHighest,
                         child: ListTile(
                           contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
                           leading:  Icon(Icons.info_outline, color: Theme.of(context).colorScheme.primary),
@@ -694,8 +694,8 @@ class _SendLetterScreenState extends State<SendLetterScreen> {
                                   value: _selectedClassNumber,
                                   items: List.generate(50, (index) => index + 1)
                                       .map((classNum) => DropdownMenuItem(
-                                    value: '${classNum}班',
-                                    child: Text('${classNum}班'),
+                                    value: '$classNum班',
+                                    child: Text('$classNum班'),
                                   ))
                                       .toList(),
                                   onChanged: (value) {
@@ -782,7 +782,7 @@ class _SendLetterScreenState extends State<SendLetterScreen> {
       labelText: labelText,
       hintText: hintText,
       filled: true,
-      fillColor: Theme.of(context).colorScheme.surfaceVariant,
+      fillColor: Theme.of(context).colorScheme.surfaceContainerHighest,
       labelStyle: TextStyle(color: Colors.grey[600]),
       hintStyle: TextStyle(color: Colors.grey[400]),
       contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
@@ -873,8 +873,8 @@ class _SendLetterScreenState extends State<SendLetterScreen> {
           )
       ),
       checkboxTheme: CheckboxThemeData(
-        fillColor: MaterialStateProperty.resolveWith<Color?>((states) {
-          if (states.contains(MaterialState.selected)) {
+        fillColor: WidgetStateProperty.resolveWith<Color?>((states) {
+          if (states.contains(WidgetState.selected)) {
             return Theme.of(context).colorScheme.primary;
           }
           return null;

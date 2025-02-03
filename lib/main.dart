@@ -35,7 +35,7 @@ void main() async {
     runApp(
        ChangeNotifierProvider(
            create: (context)=> UserData(),
-            child: MyApp()
+            child: const MyApp()
        )
     );
 }
