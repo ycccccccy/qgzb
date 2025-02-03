@@ -6,7 +6,7 @@ class SimpleCaptcha extends StatefulWidget {
   final ValueChanged<String> onCompleted;
     final bool isDialog; // 添加一个 isDialog 字段
 
-  const SimpleCaptcha({super.key, required this.onCompleted, this.isDialog = false}); // isDialog默认为 false
+  SimpleCaptcha({Key? key, required this.onCompleted, this.isDialog = false}) : super(key: key); // isDialog默认为 false
 
   @override
   _SimpleCaptchaState createState() => _SimpleCaptchaState();
@@ -70,7 +70,7 @@ class _SimpleCaptchaState extends State<SimpleCaptcha> {
               ),
            ),
       ),
-        const SizedBox(height: 10),
+        SizedBox(height: 10),
         TextField(
           controller: _textEditingController,  
           keyboardType: TextInputType.visiblePassword,
@@ -84,7 +84,7 @@ class _SimpleCaptchaState extends State<SimpleCaptcha> {
               border: widget.isDialog ? OutlineInputBorder(
                                     borderRadius: BorderRadius.circular(8),
                                     borderSide: BorderSide.none,
-                                  ) : const OutlineInputBorder(),
+                                  ) : OutlineInputBorder(),
             ),
           onChanged: (value) {
             if (value.length == 4) {

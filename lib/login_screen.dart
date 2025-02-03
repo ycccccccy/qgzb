@@ -276,7 +276,7 @@ class _LoginScreenState extends State<LoginScreen> {
       builder: (context) {
         return AlertDialog(
           title: const Text('忘记密码？'),
-          content: const Text(_contactInfo),
+          content: Text(_contactInfo),
           actions: <Widget>[
             TextButton(
               child: const Text('关闭'),
