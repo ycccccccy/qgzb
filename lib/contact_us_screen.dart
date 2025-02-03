@@ -4,45 +4,13 @@ import 'global_appbar.dart';
 class ContactUsScreen extends StatelessWidget {
   const ContactUsScreen({super.key});
 
-  void _showEggPage(BuildContext context) {
-    Navigator.push(
-      context,
-      MaterialPageRoute(
-        builder: (context) => Scaffold(
-          appBar: AppBar(
-            title: const Text('彩蛋'),
-            leading: IconButton(
-              icon: const Icon(Icons.arrow_back),
-              onPressed: () => Navigator.pop(context),
-            ),
-          ),
-          body: Center(
-            child: Padding(
-              padding: const EdgeInsets.all(20.0),
-              child: Text(
-                "看得出来你挺闲的，谁家好人没事过来点这个，这个是我们埋下的彩蛋，希望你喜欢我们的网站，以及你独一无二的青春",
-                style: TextStyle(
-                  fontSize: 18,
-                  color: Colors.grey[700],
-                  fontStyle: FontStyle.italic,
-                ),
-                textAlign: TextAlign.center,
-              ),
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: Colors.white,
       appBar: const PreferredSize(
-        preferredSize: Size.fromHeight(kToolbarHeight),
-        child: GlobalAppBar(title: '关于我们', showBackButton: true, actions: []),
-      ),
+          preferredSize: Size.fromHeight(kToolbarHeight),
+          child: GlobalAppBar(title: '关于我们', showBackButton: true, actions: [],)),
       body: Padding(
         padding: const EdgeInsets.all(16.0),
         child: SingleChildScrollView(
@@ -58,32 +26,18 @@ class ContactUsScreen extends StatelessWidget {
                 '邮箱：',
                 style: TextStyle(fontSize: 18, fontWeight: FontWeight.w500, color: Colors.black87),
               ),
-              InkWell(
-                onTap: () => _showEggPage(context),
-                child: Text(
-                  '3646834681@qq.com / liujingxuan200705@163.com',
-                  style: TextStyle(
-                    fontSize: 16,
-                    color: Colors.blue[700],
-                    decoration: TextDecoration.underline,
-                  ),
-                ),
+              Text(
+                '3646834681@qq.com / liujingxuan200705@163.com',
+                style: TextStyle(fontSize: 16, color: Colors.grey[700]),
               ),
               const SizedBox(height: 10),
               const Text(
                 '微信：',
                 style: TextStyle(fontSize: 18, fontWeight: FontWeight.w500, color: Colors.black87),
               ),
-              InkWell(
-                onTap: () => _showEggPage(context),
-                child: Text(
-                  'x2463274',
-                  style: TextStyle(
-                    fontSize: 16,
-                    color: Colors.blue[700],
-                    decoration: TextDecoration.underline,
-                  ),
-                ),
+              Text(
+                'x2463274',
+                style: TextStyle(fontSize: 16, color: Colors.grey[700]),
               ),
               const SizedBox(height: 20),
              

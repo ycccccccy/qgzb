@@ -34,7 +34,7 @@ class _ContactDetailScreenState extends State<ContactDetailScreen> {
           if (snapshot.connectionState == ConnectionState.waiting) {
             return const Center(child: CircularProgressIndicator());
           } else if (snapshot.hasError) {
-            return Center(
+            return const Center(
                 child: Text('Error', style: TextStyle(color: Colors.red)));
           } else if (snapshot.hasData && snapshot.data!.isNotEmpty) {
             return ListView.builder(

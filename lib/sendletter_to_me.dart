@@ -8,29 +8,8 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:path/path.dart' as path;
 import 'package:provider/provider.dart'; // 引入 Provider
+import 'package:qgzb/user_data.dart';
 
-
-
-class UserData with ChangeNotifier{
-   String? currentUserId;
-   String? rememberedId;
-   String? rememberedName;
-
-  void clear(){
-     currentUserId = null;
-     rememberedId = null;
-     rememberedName = null;
-       notifyListeners();
-  }
-
-  void setUserData(String currentUserId, String? rememberedId, String? rememberedName){
-       this.currentUserId = currentUserId;
-       this.rememberedId = rememberedId;
-       this.rememberedName = rememberedName;
-       notifyListeners();
-  }
-
-}
 
 class SendToSelfPage extends StatefulWidget {
   const SendToSelfPage({super.key});
@@ -196,7 +175,7 @@ class _SendToSelfPageState extends State<SendToSelfPage> {
 
   @override
   Widget build(BuildContext context) {
-      final userData = Provider.of<UserData>(context);
+      final userData = context.watch<UserData>();
     return Scaffold(
       backgroundColor: backgroundColor,
       body: SafeArea(

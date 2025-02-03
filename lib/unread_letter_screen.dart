@@ -6,6 +6,8 @@ import 'letter_detail_screen.dart';
 import 'global_appbar.dart';
 
 class UnreadLetterScreen extends StatefulWidget {
+  const UnreadLetterScreen({super.key});
+
   @override
   _UnreadLetterScreenState createState() => _UnreadLetterScreenState();
 }
@@ -158,8 +160,7 @@ class _UnreadLetterScreenState extends State<UnreadLetterScreen> {
         .select('student_id, name')
         .inFilter('student_id', senderIds);
 
-    final senderMap = Map.fromIterable(senderResponse,
-        key: (item) => item['student_id'], value: (item) => item['name']);
+    final senderMap = { for (var item in senderResponse) item['student_id'] : item['name'] };
 
     // 将发件人姓名添加到信件数据中
     List<Map<String, dynamic>> lettersWithSenderNames = letters.map((letter) {
@@ -219,11 +220,11 @@ class _UnreadLetterScreenState extends State<UnreadLetterScreen> {
                 },
               ),
               if(_isLoadingMore)
-                Positioned(
+                const Positioned(
                     bottom: 10,
                     left: 0,
                     right: 0,
-                    child: const Center(child: CircularProgressIndicator())
+                    child: Center(child: CircularProgressIndicator())
                 )
             ],
           );
