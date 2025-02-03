@@ -40,7 +40,7 @@ class _HomeScreenMainState extends State<HomeScreenMain> {
   Future<void> _loadNotificationText() async {
     final prefs = await SharedPreferences.getInstance();
     final notificationText = prefs.getString('notificationText') ??
-        '公告：欢迎来到鸿雁心笺，一个连接心灵、珍藏记忆的温暖角落。在这里，我们为你精心准备了两项特色功能：“写封信给Ta”与“时空胶囊”。\n通过信件，你可以轻松互送节日祝福，传递温馨寄语，让心意在指尖流转，无论距离多远，都能感受到彼此的关怀与祝福。\n而时空胶囊则为即将毕业的学子们提供了一个独特的机会，封存青春絮语，静待考试落幕，让回忆在时光中重现。无论是此刻的梦想、希望还是对未来的憧憬，都可以在这里安全保存，待到金榜题名时，重启那些珍贵的瞬间。\n鸿雁心笺是你传递情感、珍藏记忆的温馨港湾。在这里，每一份祝福都被珍视，每一段回忆都被妥善保存。';
+        '欢迎来到鸿雁心笺，一个连接心灵、珍藏记忆的温暖角落。\n在这里，我们为你精心准备了两项特色功能：“写封信给Ta”与“时空胶囊”。\n通过信件，你可以轻松互送节日祝福，传递温馨寄语，让心意在指尖流转，无论距离多远，都能感受到彼此的关怀与祝福。\n而时空胶囊则为即将毕业的学子们提供了一个独特的机会，封存青春絮语，静待考试落幕，让回忆在时光中重现。无论是此刻的梦想、希望还是对未来的憧憬，都可以在这里安全保存，待到金榜题名时，重启那些珍贵的瞬间。\n鸿雁心笺是你传递情感、珍藏记忆的温馨港湾。在这里，每一份祝福都被珍视，每一段回忆都被妥善保存。';
     setState(() {
       _notificationText = notificationText;
     });
@@ -133,7 +133,7 @@ class _HomeScreenMainState extends State<HomeScreenMain> {
       context: context,
       builder: (BuildContext context) {
         return AlertDialog(
-          title: const Text('通知'),
+          title: const Text('公告'),
           content: Text(_notificationText),
           actions: <Widget>[
             TextButton(
