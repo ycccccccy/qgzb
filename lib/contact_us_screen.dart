@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'global_appbar.dart';
+import 'egg.dart'; 
 
 class ContactUsScreen extends StatelessWidget {
   const ContactUsScreen({super.key});
@@ -10,7 +11,11 @@ class ContactUsScreen extends StatelessWidget {
       backgroundColor: Colors.white,
       appBar: const PreferredSize(
           preferredSize: Size.fromHeight(kToolbarHeight),
-          child: GlobalAppBar(title: '关于我们', showBackButton: true, actions: [],)),
+          child: GlobalAppBar(
+            title: '关于我们',
+            showBackButton: true,
+            actions: [],
+          )),
       body: Padding(
         padding: const EdgeInsets.all(16.0),
         child: SingleChildScrollView(
@@ -19,31 +24,58 @@ class ContactUsScreen extends StatelessWidget {
             children: [
               const Text(
                 '联系方式',
-                style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold, color: Colors.black87),
+                style: TextStyle(
+                    fontSize: 24,
+                    fontWeight: FontWeight.bold,
+                    color: Colors.black87),
               ),
               const SizedBox(height: 20),
               const Text(
                 '邮箱：',
-                style: TextStyle(fontSize: 18, fontWeight: FontWeight.w500, color: Colors.black87),
+                style: TextStyle(
+                    fontSize: 18,
+                    fontWeight: FontWeight.w500,
+                    color: Colors.black87),
               ),
-              Text(
-                '3646834681@qq.com / liujingxuan200705@163.com',
-                style: TextStyle(fontSize: 16, color: Colors.grey[700]),
+              InkWell(
+                onTap: () {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(builder: (context) => const EggPage()),
+                  );
+                },
+                child: Text(
+                  '3646834681@qq.com / liujingxuan200705@163.com',
+                  style: TextStyle(fontSize: 16, color: Colors.grey[700]),
+                ),
               ),
               const SizedBox(height: 10),
               const Text(
                 '微信：',
-                style: TextStyle(fontSize: 18, fontWeight: FontWeight.w500, color: Colors.black87),
+                style: TextStyle(
+                    fontSize: 18,
+                    fontWeight: FontWeight.w500,
+                    color: Colors.black87),
               ),
-              Text(
-                'x2463274',
-                style: TextStyle(fontSize: 16, color: Colors.grey[700]),
+              InkWell(
+                onTap: () {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(builder: (context) => const EggPage()),
+                  );
+                },
+                child: Text(
+                  'x2463274',
+                  style: TextStyle(fontSize: 16, color: Colors.grey[700]),
+                ),
               ),
               const SizedBox(height: 20),
-             
               const Text(
                 '我们的理念',
-                style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold, color: Colors.black87),
+                style: TextStyle(
+                    fontSize: 24,
+                    fontWeight: FontWeight.bold,
+                    color: Colors.black87),
               ),
               const SizedBox(height: 10),
               Text(

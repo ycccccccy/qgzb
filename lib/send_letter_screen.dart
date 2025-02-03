@@ -692,7 +692,7 @@ class _SendLetterScreenState extends State<SendLetterScreen> {
                                   labelText: '班级',
                                   hintText: '请选择班级',
                                   value: _selectedClassNumber,
-                                  items: List.generate(13, (index) => index + 1)
+                                  items: List.generate(50, (index) => index + 1)
                                       .map((classNum) => DropdownMenuItem(
                                     value: '${classNum}班',
                                     child: Text('${classNum}班'),

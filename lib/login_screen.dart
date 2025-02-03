@@ -475,7 +475,7 @@ class _LoginScreenState extends State<LoginScreen> {
                               ),
                             ),
                             value: _selectedClass,
-                            items: List.generate(13, (index) => index + 1)
+                            items: List.generate(50, (index) => index + 1)
                                 .map((classNum) => DropdownMenuItem(
                               value: classNum,
                               child: Text('$classNum班'),
