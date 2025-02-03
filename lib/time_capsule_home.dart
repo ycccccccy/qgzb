@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:hhxj/Capsule_inbox.dart';
+import 'Capsule_inbox.dart';
 import 'sendletter_to_me.dart';
 import 'sendletter_to_others.dart';
 import 'global_appbar.dart';

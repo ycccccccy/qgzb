@@ -9,7 +9,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:provider/provider.dart';
 import 'package:path/path.dart' as path;
-import 'package:hhxj/user_data.dart';
+import 'user_data.dart';
 import 'global_appbar.dart';
 
 

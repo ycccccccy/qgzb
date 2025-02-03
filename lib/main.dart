@@ -3,7 +3,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import 'login_screen.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:provider/provider.dart';
-import 'package:hhxj/user_data.dart';
+import 'user_data.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
