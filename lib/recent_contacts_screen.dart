@@ -82,11 +82,9 @@ class _RecentContactsScreenState extends State<RecentContactsScreen> {
       List<String> names =
           response.map((e) => e['receiver_name'].toString()).toList();
       return names.toSet().toList();
-    } on PostgrestException catch (e) {
-      print('获取常用联系人发生 Supabase 错误: ${e.message}');
+    } on PostgrestException {
       return [];
     } catch (e) {
-      print('获取常用联系人发生其他错误：$e');
       return [];
     }
   }

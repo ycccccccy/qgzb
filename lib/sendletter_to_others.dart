@@ -236,11 +236,11 @@ class _SendToOthersPageState extends State<SendToOthersPage> {
       }
       await _uploadImage();
 
-      final letterResponse = await _supabase
+      await _supabase
           .from('Letters')
           .insert({
-        'sender_id': senderId,
-        'receiver_id': receiverId,
+        'sender_id': senderId.toString(), 
+        'receiver_id': receiverId.toString(),
         'message': _messageController.text,
         'delivery_date': _deliveryDateController.text,
         'is_hidden': true,

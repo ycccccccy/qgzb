@@ -399,6 +399,7 @@ class _LoginScreenState extends State<LoginScreen> {
                             ? schoolList[_selectedDistrict]?.map((school) => DropdownMenuItem(
                             value: school,
                             child: Text(school),
+                            
                          )).toList()
                             : [],
                        onChanged: (value) {

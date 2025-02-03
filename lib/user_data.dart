@@ -5,6 +5,8 @@ class UserData with ChangeNotifier{
    String? rememberedId;
    String? rememberedName;
 
+  get email => null;
+
   void clear(){
      currentUserId = null;
      rememberedId = null;
