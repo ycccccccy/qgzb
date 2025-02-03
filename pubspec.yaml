@@ -66,9 +66,7 @@ dev_dependencies:
 # The following section is specific to Flutter packages.
 flutter:
   assets:
-    - assets/images/custom_icon1.png
-    - assets/images/custom_icon2.png
-    - assets/images/starry_sky.jpg
+    - assets/images/
   # The following line ensures that the Material Icons font is
   # included with your application, so that you can use the icons in
   # the material Icons class.
