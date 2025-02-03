@@ -160,11 +160,11 @@ class _SentLettersScreenState extends State<SentLettersScreen> {
                 },
               ),
               if(_isLoadingMore)
-              const Positioned(
+              Positioned(
                   bottom: 10,
                   left: 0,
                   right: 0,
-                  child: Center(child: CircularProgressIndicator())
+                  child: const Center(child: CircularProgressIndicator())
               )
             ],
           );

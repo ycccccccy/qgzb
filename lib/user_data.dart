@@ -1,22 +1,22 @@
-import 'package:flutter/foundation.dart';
+ // user_data.dart
+ import 'package:flutter/material.dart';
 
-class UserData with ChangeNotifier{
+ class UserData with ChangeNotifier{
    String? currentUserId;
    String? rememberedId;
    String? rememberedName;
 
-  void clear(){
+   void clear(){
      currentUserId = null;
      rememberedId = null;
      rememberedName = null;
-       notifyListeners();
-  }
+     notifyListeners();
+   }
 
-  void setUserData(String currentUserId, String? rememberedId, String? rememberedName){
-       this.currentUserId = currentUserId;
-       this.rememberedId = rememberedId;
-       this.rememberedName = rememberedName;
-       notifyListeners();
-  }
-
-}
+   void setUserData(String currentUserId, String? rememberedId, String? rememberedName){
+     this.currentUserId = currentUserId;
+     this.rememberedId = rememberedId;
+     this.rememberedName = rememberedName;
+     notifyListeners();
+   }
+ }

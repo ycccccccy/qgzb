@@ -305,7 +305,7 @@ class CustomButton extends StatelessWidget {
   final String dialogContent;
 
 
-  const CustomButton({super.key, 
+  CustomButton({
     this.imagePath,
     this.iconData,
     required this.topText,
