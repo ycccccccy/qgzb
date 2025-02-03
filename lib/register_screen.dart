@@ -8,6 +8,8 @@ import 'package:flutter/services.dart';
 import 'school_data.dart';
 
 class RegisterScreen extends StatefulWidget {
+  const RegisterScreen({super.key});
+
   @override
   _RegisterScreenState createState() => _RegisterScreenState();
 }
@@ -69,7 +71,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
         _showSuccessSnackBar('注册成功，请登录');
         Navigator.pushReplacement(
           context,
-          MaterialPageRoute(builder: (context) => LoginScreen()),
+          MaterialPageRoute(builder: (context) => const LoginScreen()),
         );
       } else {
         _showErrorSnackBar('注册失败，请重试');
@@ -134,7 +136,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
                   mainAxisSize: MainAxisSize.min,
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
-                    Text(
+                    const Text(
                       '注册',
                       style: TextStyle(
                           fontSize: 24,
@@ -142,7 +144,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
                           color: Colors.blue),
                       textAlign: TextAlign.center,
                     ),
-                    SizedBox(height: 20),
+                    const SizedBox(height: 20),
                     buildTextFormField(
                         controller: _studentIdController,
                         labelText: '学号',
@@ -158,7 +160,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
                           }
                           return null;
                         }),
-                    SizedBox(height: 16),
+                    const SizedBox(height: 16),
                     buildTextFormField(
                         controller: _nameController,
                         labelText: '姓名',
@@ -170,7 +172,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
                           }
                           return null;
                         }),
-                       SizedBox(height: 16),
+                       const SizedBox(height: 16),
                       DropdownButtonFormField<String>(
                        decoration: InputDecoration(
                           labelText: '区',
@@ -200,7 +202,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
                            return null;
                          },
                       ),
-                    SizedBox(height: 16),
+                    const SizedBox(height: 16),
                      DropdownButtonFormField<String>(
                        decoration: InputDecoration(
                           labelText: '学校',
@@ -231,7 +233,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
                          return null;
                        },
                      ),
-                    SizedBox(height: 16),
+                    const SizedBox(height: 16),
                      Row(
                       children: [
                         Expanded(
@@ -272,7 +274,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
                             },
                           ),
                         ),
-                        SizedBox(width: 16),
+                        const SizedBox(width: 16),
                         Expanded(
                           child: DropdownButtonFormField<int>(
                             decoration: InputDecoration(
@@ -306,7 +308,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
                         ),
                       ],
                     ),
-                    SizedBox(height: 16),
+                    const SizedBox(height: 16),
                     buildTextFormField(
                         controller: _passwordController,
                         labelText: '密码',
@@ -332,27 +334,27 @@ class _RegisterScreenState extends State<RegisterScreen> {
                           }
                           return null;
                         }),
-                    SizedBox(height: 24),
+                    const SizedBox(height: 24),
                     ElevatedButton(
                       onPressed: _isLoading ? null : _handleRegister,
                       style: ElevatedButton.styleFrom(
                         backgroundColor: Colors.blue,
-                        padding: EdgeInsets.symmetric(vertical: 14),
+                        padding: const EdgeInsets.symmetric(vertical: 14),
                         shape: RoundedRectangleBorder(
                             borderRadius: BorderRadius.circular(8)),
                       ),
                       child: _isLoading
-                          ? CircularProgressIndicator(color: Colors.white)
-                          : Text('注册',
+                          ? const CircularProgressIndicator(color: Colors.white)
+                          : const Text('注册',
                           style:
                           TextStyle(fontSize: 18, color: Colors.white)),
                     ),
-                    SizedBox(height: 10),
+                    const SizedBox(height: 10),
                     TextButton(
                       onPressed: () {
                         Navigator.pop(context);
                       },
-                      child: Text('已有账号？去登录',style: TextStyle(color: Colors.blueGrey),),
+                      child: const Text('已有账号？去登录',style: TextStyle(color: Colors.blueGrey),),
                     ),
                   ],
                 ),

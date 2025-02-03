@@ -4,6 +4,7 @@ import 'login_screen.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:provider/provider.dart';
 import 'sendletter_to_me.dart';
+import 'package:qgzb/user_data.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -15,7 +16,7 @@ void main() async {
 
 
    Supabase.instance.client.auth.onAuthStateChange.listen((event) async {
-         final AuthChangeEvent? eventType = event.event;
+         final AuthChangeEvent eventType = event.event;
         final prefs = await SharedPreferences.getInstance();
          if (eventType == AuthChangeEvent.signedOut) {
              final userData = UserData();
@@ -41,6 +42,8 @@ void main() async {
 }
 
 class MyApp extends StatelessWidget {
+  const MyApp({super.key});
+
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
@@ -57,7 +60,7 @@ class MyApp extends StatelessWidget {
           elevation: 1,
         ),
       ),
-      home: LoginScreen(),
+      home: const LoginScreen(),
     );
   }
 }
