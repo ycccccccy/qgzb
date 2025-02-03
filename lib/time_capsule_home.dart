@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:qgzb/Capsule_inbox.dart';
 import 'sendletter_to_me.dart';
 import 'sendletter_to_others.dart';
 import 'global_appbar.dart';
@@ -41,7 +42,7 @@ class TimeCapsuleHome extends StatelessWidget {
           width: 280,
           child: _buildCardButton(
             context,
-            icon: Icons.mail_outline,
+            icon: Icons.person,
             text: '给未来的自己',
             onPressed: () => Navigator.push(
               context,
@@ -53,11 +54,23 @@ class TimeCapsuleHome extends StatelessWidget {
            width: 280,
            child: _buildCardButton(
             context,
-            icon: Icons.send_outlined,
+            icon: Icons.people_alt,
             text: '给未来的Ta',
             onPressed: () => Navigator.push(
               context,
               MaterialPageRoute(builder: (_) => const SendToOthersPage()),
+            ),
+          ),
+         ),
+         SizedBox(
+           width: 280,
+           child: _buildCardButton(
+            context,
+            icon: Icons.lock_open,
+            text: '查看已解封的时空胶囊',
+            onPressed: () => Navigator.push(
+              context,
+              MaterialPageRoute(builder: (_) => const InboxPage()),
             ),
           ),
          ),
