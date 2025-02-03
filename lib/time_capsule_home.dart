@@ -63,17 +63,23 @@ class TimeCapsuleHome extends StatelessWidget {
           ),
          ),
          SizedBox(
-           width: 280,
-           child: _buildCardButton(
+          width: 280,
+          child: _buildCardButton(
             context,
             icon: Icons.lock_open,
             text: '查看已解封的时空胶囊',
-            onPressed: () => Navigator.push(
-              context,
-              MaterialPageRoute(builder: (_) => const InboxPage()),
-            ),
+            onPressed: () {
+              // 显示 "功能还在施工中" 的 SnackBar 提示
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(
+                  content: Text('⏳ 功能还在施工中，敬请期待！'),
+                  duration: Duration(seconds: 2), // 提示显示时长
+                ),
+              );
+              // 不进行页面跳转
+            },
           ),
-         ),
+        ),
         ],
     );
   }
