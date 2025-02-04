@@ -14,33 +14,35 @@ void main() async {
   );
 
   Supabase.instance.client.auth.onAuthStateChange.listen((event) async {
-        final AuthChangeEvent eventType = event.event;
-       final prefs = await SharedPreferences.getInstance();
-        if (eventType == AuthChangeEvent.signedOut) {
-            final userData = UserData();
-           userData.clear();
-          await prefs.remove('current_user_id');
-          await prefs.remove('rememberedName');
-          await prefs.remove('rememberedId');
-       }else if (eventType == AuthChangeEvent.signedIn || eventType == AuthChangeEvent.tokenRefreshed){
-             final user = Supabase.instance.client.auth.currentUser;
-            if (user != null) {
-                 await prefs.setString('current_user_id', user.id);
-                 await prefs.setString('rememberedName', user.userMetadata?['name'] as String? ?? '');
-                 await prefs.setString('rememberedId', user.userMetadata?['student_id'] as String? ?? '');
-             }
-        }
-   });
-    runApp(
-      ChangeNotifierProvider(
-          create: (context)=> UserData(),
-           child: const MyApp()
-      )
-    );
+    final AuthChangeEvent eventType = event.event;
+    final prefs = await SharedPreferences.getInstance();
+    if (eventType == AuthChangeEvent.signedOut) {
+      final userData = UserData();
+      userData.clear();
+      await prefs.remove('current_user_id');
+      await prefs.remove('rememberedName');
+      await prefs.remove('rememberedId');
+    } else if (eventType == AuthChangeEvent.signedIn ||
+        eventType == AuthChangeEvent.tokenRefreshed) {
+      final user = Supabase.instance.client.auth.currentUser;
+      if (user != null) {
+        await prefs.setString('current_user_id', user.id);
+        await prefs.setString('rememberedName', user.userMetadata?['name'] as String? ?? '');
+        await prefs.setString('rememberedId', user.userMetadata?['student_id'] as String? ?? '');
+      }
+    }
+  });
+
+  runApp(
+    ChangeNotifierProvider(
+      create: (context) => UserData(),
+      child: const MyApp(),
+    ),
+  );
 }
 
 class MyApp extends StatelessWidget {
-  const MyApp({super.key});
+  const MyApp({Key? key});
 
   @override
   Widget build(BuildContext context) {
