@@ -455,7 +455,7 @@ class _SendLetterScreenState extends State<SendLetterScreen> {
 
                           return Container(
                             height: calculatedHeight,
-                            constraints: BoxConstraints(maxHeight: maxListHeight),
+                            constraints: const BoxConstraints(maxHeight: maxListHeight),
                             decoration: BoxDecoration(
                               color: Theme.of(context).colorScheme.surface,
                               borderRadius: const BorderRadius.only(bottomLeft:Radius.circular(12) , bottomRight: Radius.circular(12)),
@@ -536,7 +536,7 @@ class _SendLetterScreenState extends State<SendLetterScreen> {
                           leading:  Icon(Icons.info_outline, color: Theme.of(context).colorScheme.primary),
                           title:  Text(
                             '您正在使用服务器返回的信息发送',
-                            style: TextStyle(color:Theme.of(context).colorScheme.primary, fontWeight: FontWeight.bold),
+                            style: TextStyle(color:Theme.of(context).colorScheme.primary, fontWeight: FontWeight.bold, fontFamily: 'MiSans'),
                           ),
                           subtitle: Column(
                             crossAxisAlignment: CrossAxisAlignment.start,

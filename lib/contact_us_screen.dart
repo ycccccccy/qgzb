@@ -79,7 +79,7 @@ class ContactUsScreen extends StatelessWidget {
               ),
               const SizedBox(height: 10),
               Text(
-                '校园不应是信息的孤岛，我们正在构建跨越山河的温暖星轨，通过文字的光年跋涉，让每份真挚都能抵达应往的远方。',
+                '校园不应是信息的孤岛，我们希望通过文字的光年跋涉，让每份真挚都能抵达应往的远方。',
                 style: TextStyle(fontSize: 16, color: Colors.grey[700]),
               ),
               const SizedBox(height: 10),

@@ -83,18 +83,19 @@ class _EggPageState extends State<EggPage> {
               builder: (BuildContext context, BoxConstraints constraints) {
                 final screenWidth = constraints.maxWidth;
                 final baseFontSize = screenWidth * 0.035;
-                const double maxBottomFontSize = 18.0; // 设置底部文字最大字体大小
+                const double maxBottomFontSize = 18.0; 
 
                 return Stack(
                   children: [
                     Center(
                       child: Text(
-                        "点点星光，终汇成璀璨星河",
+                        "点点星光，终将汇成璀璨星河",
                         textAlign: TextAlign.center,
                         style: TextStyle(
                           color: Colors.white,
-                          fontSize: baseFontSize * 1.5, // 中间文字继续缩放
-                          fontWeight: FontWeight.bold,
+                          fontSize: baseFontSize * 1.3,
+                          fontFamily: 'MiSans',
+                          fontWeight: FontWeight.w700,
                           shadows: [
                             Shadow(
                               blurRadius: 8.0,
@@ -106,7 +107,7 @@ class _EggPageState extends State<EggPage> {
                       ),
                     ),
                     Positioned(
-                      bottom: screenWidth * 0.05, // 距离底部 10% 屏幕宽度
+                      bottom: screenWidth * 0.05,
                       left: 0,
                       right: 0,
                       child: Column(
@@ -116,7 +117,9 @@ class _EggPageState extends State<EggPage> {
                             textAlign: TextAlign.center,
                             style: TextStyle(
                               color: Colors.white,
-                              fontSize: min(baseFontSize, maxBottomFontSize), // 底部文字限制大小
+                              fontSize: min(baseFontSize, maxBottomFontSize),
+                              fontFamily: 'MiSans',
+                              fontWeight: FontWeight.w500, 
                             ),
                           ),
                           SizedBox(height: screenWidth * 0.02),
@@ -125,7 +128,9 @@ class _EggPageState extends State<EggPage> {
                             textAlign: TextAlign.center,
                             style: TextStyle(
                               color: Colors.white,
-                              fontSize: min(baseFontSize, maxBottomFontSize), // 底部文字限制大小
+                              fontSize: min(baseFontSize, maxBottomFontSize),
+                              fontFamily: 'MiSans',
+                              fontWeight: FontWeight.w500,  // 使用 medium 字体
                             ),
                           ),
                         ],

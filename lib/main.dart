@@ -13,30 +13,29 @@ void main() async {
     anonKey: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImJ5ZGJ2aHNrbmdnamt5aWZoeXdxIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTcyOTk5NjQ4MiwiZXhwIjoyMDQ1NTcyNDgyfQ._83EQF_RaXn63-q7Gh8xj36FmoIFQnTGYCohljOnHGE',
   );
 
-
-   Supabase.instance.client.auth.onAuthStateChange.listen((event) async {
-         final AuthChangeEvent eventType = event.event;
-        final prefs = await SharedPreferences.getInstance();
-         if (eventType == AuthChangeEvent.signedOut) {
-             final userData = UserData();
-            userData.clear();
-           await prefs.remove('current_user_id');
-           await prefs.remove('rememberedName');
-           await prefs.remove('rememberedId');
-        }else if (eventType == AuthChangeEvent.signedIn || eventType == AuthChangeEvent.tokenRefreshed){
-              final user = Supabase.instance.client.auth.currentUser;
-             if (user != null) {
-                  await prefs.setString('current_user_id', user.id);
-                  await prefs.setString('rememberedName', user.userMetadata?['name'] as String? ?? '');
-                  await prefs.setString('rememberedId', user.userMetadata?['student_id'] as String? ?? '');
-              }
-         }
-    });
+  Supabase.instance.client.auth.onAuthStateChange.listen((event) async {
+        final AuthChangeEvent eventType = event.event;
+       final prefs = await SharedPreferences.getInstance();
+        if (eventType == AuthChangeEvent.signedOut) {
+            final userData = UserData();
+           userData.clear();
+          await prefs.remove('current_user_id');
+          await prefs.remove('rememberedName');
+          await prefs.remove('rememberedId');
+       }else if (eventType == AuthChangeEvent.signedIn || eventType == AuthChangeEvent.tokenRefreshed){
+             final user = Supabase.instance.client.auth.currentUser;
+            if (user != null) {
+                 await prefs.setString('current_user_id', user.id);
+                 await prefs.setString('rememberedName', user.userMetadata?['name'] as String? ?? '');
+                 await prefs.setString('rememberedId', user.userMetadata?['student_id'] as String? ?? '');
+             }
+        }
+   });
     runApp(
-       ChangeNotifierProvider(
-           create: (context)=> UserData(),
-            child: const MyApp()
-       )
+      ChangeNotifierProvider(
+          create: (context)=> UserData(),
+           child: const MyApp()
+      )
     );
 }
 
@@ -54,10 +53,11 @@ class MyApp extends StatelessWidget {
         ),
         appBarTheme: const AppBarTheme(
           backgroundColor: Colors.white,
-          titleTextStyle: TextStyle(color: Colors.black87),
+          titleTextStyle: TextStyle(color: Colors.black87, fontFamily: 'MiSans'),
           iconTheme: IconThemeData(color: Colors.black87),
           elevation: 1,
         ),
+        fontFamily: 'MiSans',
       ),
       home: const LoginScreen(),
     );
