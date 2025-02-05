@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
-import 'package:shared_preferences/shared_preferences.dart';
 import 'letter_detail_screen.dart';
 import 'package:intl/intl.dart';
 import 'global_appbar.dart';
@@ -17,7 +16,7 @@ class _SentLettersScreenState extends State<SentLettersScreen> {
   final Color backgroundColor = Colors.grey[100]!;
   final Color cardColor = Colors.grey[50]!;
   final EdgeInsets cardMargin =
-      const EdgeInsets.symmetric(vertical: 8, horizontal: 16);
+  const EdgeInsets.symmetric(vertical: 8, horizontal: 16);
   final _scrollController = ScrollController();
   bool _isLoadingMore = false;
   int _currentPage = 0;
@@ -83,15 +82,19 @@ class _SentLettersScreenState extends State<SentLettersScreen> {
 
   Future<List<Map<String, dynamic>>> fetchSentLetters() async {
     try {
-      final prefs = await SharedPreferences.getInstance();
-      final currentUserId = prefs.getString('current_user_id') ?? '';
+      final currentUserId = Supabase.instance.client.auth.currentUser?.id; // 修改：使用 Supabase Auth 获取 currentUserId
+      if (currentUserId == null) {
+        _showErrorSnackBar('用户未登录，无法加载已发送信件'); // 添加用户未登录提示
+        return [];
+      }
 
-       final response = await Supabase.instance.client
+      final response = await Supabase.instance.client
           .from('letters')
           .select()
           .eq('sender_id', currentUserId)
-          .range(_currentPage * _pageSize, (_currentPage + 1) * _pageSize -1);
-      return response;
+          .range(_currentPage * _pageSize, (_currentPage + 1) * _pageSize -1); 
+
+      return (response as List<dynamic>?)?.cast<Map<String, dynamic>>() ?? []; // 类型转换和空值处理
     } on PostgrestException catch (e) {
       _showErrorSnackBar('获取已发送信件发生 Supabase 错误: ${e.message}');
       return [];
@@ -160,12 +163,12 @@ class _SentLettersScreenState extends State<SentLettersScreen> {
                 },
               ),
               if(_isLoadingMore)
-              const Positioned(
-                  bottom: 10,
-                  left: 0,
-                  right: 0,
-                  child: Center(child: CircularProgressIndicator())
-              )
+                const Positioned(
+                    bottom: 10,
+                    left: 0,
+                    right: 0,
+                    child: Center(child: CircularProgressIndicator())
+                )
             ],
           );
         } else {

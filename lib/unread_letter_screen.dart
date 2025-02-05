@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
-import 'package:shared_preferences/shared_preferences.dart';
 import 'letter_detail_screen.dart';
 import 'global_appbar.dart';
 
@@ -22,7 +21,6 @@ class _UnreadLetterScreenState extends State<UnreadLetterScreen> {
   final int _pageSize = 10;
   List<Map<String, dynamic>> _allLetters = [];
   bool _hasMoreData = true;
-
 
 
   @override
@@ -79,38 +77,55 @@ class _UnreadLetterScreenState extends State<UnreadLetterScreen> {
     return letters;
   }
 
-  Future<List<Map<String, dynamic>>> fetchUnreadLetters() async {
+        Future<List<Map<String, dynamic>>> fetchUnreadLetters() async {
     try {
-      final prefs = await SharedPreferences.getInstance();
-      final currentUserId = prefs.getString('current_user_id') ?? '';
+      final currentUserId = Supabase.instance.client.auth.currentUser?.id;
+      if (currentUserId == null) {
+        _showErrorSnackBar('用户未登录，无法加载未读信件');
+        return [];
+      }
       final studentData = await _fetchStudentData(currentUserId);
+      if (studentData == null) {
+        return [];
+      }
+      final studentName = studentData['name'];
+      final myClass = studentData['class_name'];
 
-      final allLetters = await _fetchLetters(studentData);
 
-      final filteredLetters = _filterLetters(allLetters, studentData);
-      //print("过滤信件的数据$filteredLetters");
-      final lettersWithSenderNames =
-          await _fetchSenderNames(filteredLetters);
-      //print("带有发件人姓名的信件：$lettersWithSenderNames");
-      return lettersWithSenderNames;
+      // 最简化查询 - 只使用 .eq('receiver_name', studentName) 条件:
+      final query = Supabase.instance.client
+          .from('letters')
+          .select()
+          .eq('receiver_name', studentName) // 最简化：只查询 receiver_name
+          .range(_currentPage * _pageSize, (_currentPage + 1) * _pageSize -1);
+
+
+      // 打印最简化后的查询语句
+
+      final lettersResponse = await query;
+
+      final filteredLetters = _filterLetters((lettersResponse as List<dynamic>?)?.cast<Map<String, dynamic>>() ?? [], studentData); // **显式类型转换和空值处理**
+
+
+      return filteredLetters;
     } on PostgrestException catch (e) {
-      //print('获取信件数据发生 Supabase 错误: ${e.message}');
-      _showErrorSnackBar('获取信件数据时发生 Supabase 错误: ${e.message}');
+      _showErrorSnackBar('获取信件数据时发生 Supabase 错误: $e.message}');
       return [];
     } catch (e) {
-      //print('获取信件数据发生其他错误：$e');
       _showErrorSnackBar('获取信件数据时发生其他错误: $e');
       return [];
+    } finally {
     }
   }
 
-  Future<Map<String, dynamic>> _fetchStudentData(String currentUserId) async {
+  Future<Map<String, dynamic>?> _fetchStudentData(String currentUserId) async {
     final response = await Supabase.instance.client
         .from('students')
         .select('name, class_name, allow_anonymous,school')
-        .eq('student_id', currentUserId)
-        .single();
-    return response;
+        .eq('auth_user_id', currentUserId)
+        .maybeSingle() ;
+
+    return response as Map<String, dynamic>?; // 使用 response.data 并进行类型转换，允许为 null
   }
 
   Future<List<Map<String, dynamic>>> _fetchLetters(
@@ -121,8 +136,7 @@ class _UnreadLetterScreenState extends State<UnreadLetterScreen> {
         .or('and(receiver_name.eq.${studentData['name']},my_school.eq.${studentData['school']}),and(receiver_name.eq.${studentData['name']},target_school.eq.${studentData['school']})')
         .range(_currentPage * _pageSize, (_currentPage + 1) * _pageSize -1);
     final lettersResponse = await query;
-
-    return lettersResponse;
+    return (lettersResponse as List<dynamic>?)?.cast<Map<String, dynamic>>() ?? []; // 类型转换和空值处理
   }
 
   List<Map<String, dynamic>> _filterLetters(
@@ -158,9 +172,9 @@ class _UnreadLetterScreenState extends State<UnreadLetterScreen> {
     final senderResponse = await Supabase.instance.client
         .from('students')
         .select('student_id, name')
-        .inFilter('student_id', senderIds);
+        .inFilter('student_id', senderIds); 
 
-    final senderMap = { for (var item in senderResponse) item['student_id'] : item['name'] };
+    final senderMap = { for (var item in senderResponse) item['student_id'] : item['name'] }; // 类型转换和空值处理
 
     // 将发件人姓名添加到信件数据中
     List<Map<String, dynamic>> lettersWithSenderNames = letters.map((letter) {

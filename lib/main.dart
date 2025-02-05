@@ -10,7 +10,7 @@ void main() async {
 
   await Supabase.initialize(
     url: 'https://bydbvhsknggjkyifhywq.supabase.co',
-    anonKey: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImJ5ZGJ2aHNrbmdnamt5aWZoeXdxIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTcyOTk5NjQ4MiwiZXhwIjoyMDQ1NTcyNDgyfQ._83EQF_RaXn63-q7Gh8xj36FmoIFQnTGYCohljOnHGE',
+    anonKey: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImJ5ZGJ2aHNrbmdnamt5aWZoeXdxIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Mjk5OTY0ODIsImV4cCI6MjA0NTU3MjQ4Mn0.ojALKrXWOJE3z0-WwObcg9p3wPHNgEddGy0nIWoXbdk',
   );
 
   Supabase.instance.client.auth.onAuthStateChange.listen((event) async {

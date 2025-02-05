@@ -22,6 +22,7 @@ const String _selectedDistrictKey = 'selectedDistrict';
 const String _selectedSchoolKey = 'selectedSchool';
 const String _selectedGradeKey = 'selectedGrade';
 const String _selectedClassKey = 'selectedClass';
+const String _rememberedEmailKey = 'rememberedEmail'; //  新增存储 email 的 key
 
 // 忘记密码的联系方式
 const String _contactInfo = '联系管理员：\n微信:\nx2463274\n邮箱:\n3646834681@qq.com\nliujingxuan200705@163.com';
@@ -39,6 +40,7 @@ class _LoginScreenState extends State<LoginScreen> {
   final TextEditingController _studentIdController = TextEditingController();
   final TextEditingController _nameController = TextEditingController();
   final TextEditingController _passwordController = TextEditingController();
+  final TextEditingController _emailController = TextEditingController(); //  新增 email controller
   bool _passwordVisible = false;
   bool _isLoading = false;
   bool _rememberMe = false;
@@ -68,20 +70,22 @@ class _LoginScreenState extends State<LoginScreen> {
     _studentIdController.dispose();
     _nameController.dispose();
     _passwordController.dispose();
+    _emailController.dispose(); // 释放 email controller
     super.dispose();
   }
 
-    void _updateClassValue() {
-      if (_selectedGrade != null && _selectedClass != null) {
-        setState(() {
-          _selectedClassName = '$_selectedGrade$_selectedClass班';
-        });
-      } else {
-        setState(() {
-          _selectedClassName = null;
-        });
-      }
+  void _updateClassValue() {
+    if (_selectedGrade != null && _selectedClass != null) {
+      setState(() {
+        _selectedClassName = '$_selectedGrade$_selectedClass班';
+      });
+    } else {
+      setState(() {
+        _selectedClassName = null;
+      });
     }
+  }
+
 
   Future<void> _loadRememberMe() async {
 
@@ -91,6 +95,7 @@ class _LoginScreenState extends State<LoginScreen> {
       if (_rememberMe || _autoLogin) {
         _studentIdController.text = _prefs.getString(_rememberedIdKey) ?? '';
         _nameController.text = _prefs.getString(_rememberedNameKey) ?? '';
+        _emailController.text = _prefs.getString(_rememberedEmailKey) ?? ''; // 读取 email
         if (_autoLogin) {
           _passwordController.text = _prefs.getString(_rememberedPasswordKey) ?? '';
         }
@@ -99,8 +104,10 @@ class _LoginScreenState extends State<LoginScreen> {
       _selectedSchool = _prefs.getString(_selectedSchoolKey);
       _selectedGrade = _prefs.getString(_selectedGradeKey);
       _selectedClass = _prefs.getInt(_selectedClassKey);
-       _updateClassValue();
+      _updateClassValue();
     });
+
+
   }
 
   Future<void> _saveRememberMe() async {
@@ -109,6 +116,7 @@ class _LoginScreenState extends State<LoginScreen> {
     if(_rememberMe || _autoLogin){
       await _prefs.setString(_rememberedIdKey, _studentIdController.text);
       await _prefs.setString(_rememberedNameKey, _nameController.text);
+      await _prefs.setString(_rememberedEmailKey, _emailController.text); // 存储 email
       if (_autoLogin) {
         await _prefs.setString(_rememberedPasswordKey,_passwordController.text);
       }else{
@@ -126,67 +134,59 @@ class _LoginScreenState extends State<LoginScreen> {
       await _prefs.remove(_selectedSchoolKey);
       await _prefs.remove(_selectedGradeKey);
       await _prefs.remove(_selectedClassKey);
+      await _prefs.remove(_rememberedEmailKey); //  移除 email
     }
   }
 
   void _onCaptchaCompleted(String value) {}
 
-    Future<(String?, String?, String?,String?, String?,int?)> _loadAutoLoginInfo() async {
-      final rememberedId = _prefs.getString(_rememberedIdKey);
-      final rememberedName = _prefs.getString(_rememberedNameKey);
-      final rememberedPassword = _prefs.getString(_rememberedPasswordKey);
-      final selectedDistrict = _prefs.getString(_selectedDistrictKey);
-      final selectedSchool = _prefs.getString(_selectedSchoolKey);
-      final selectedClass = _prefs.getInt(_selectedClassKey);
-      return (rememberedId, rememberedName, rememberedPassword,selectedDistrict, selectedSchool,selectedClass);
-    }
+  Future<(String?, String?, String?,String?, String?,int?)> _loadAutoLoginInfo() async {
+    final rememberedId = _prefs.getString(_rememberedIdKey);
+    final rememberedName = _prefs.getString(_rememberedNameKey);
+    final rememberedPassword = _prefs.getString(_rememberedPasswordKey);
+    final selectedDistrict = _prefs.getString(_selectedDistrictKey);
+    final selectedSchool = _prefs.getString(_selectedSchoolKey);
+    final selectedClass = _prefs.getInt(_selectedClassKey);
+    return (rememberedId, rememberedName, rememberedPassword,selectedDistrict, selectedSchool,selectedClass);
+  }
 
 
   Future<void> _attemptAutoLogin() async {
     final autoLogin = _prefs.getBool(_autoLoginKey) ?? false;
 
-     final (rememberedId, rememberedName, rememberedPassword,selectedDistrict,selectedSchool,selectedClass) =
-          await _loadAutoLoginInfo();
+    final (rememberedId, rememberedName, rememberedPassword,selectedDistrict,selectedSchool,selectedClass) =
+    await _loadAutoLoginInfo();
     if (autoLogin && rememberedId != null && rememberedName != null &&
         rememberedPassword != null && selectedDistrict != null &&
         selectedSchool != null && selectedClass != null&&!flg) {
-       setState(() => _isLoading = true);
+      setState(() => _isLoading = true);
       try {
-        final studentData = await _fetchStudentData(
-            rememberedId,
-            rememberedName,
-            selectedSchool,
+
+        final isValid = await _verifyStudent(
+          studentId: rememberedId,
+          name: rememberedName,
           className: '$_selectedGrade$_selectedClass班',
+          password: rememberedPassword,
+          school: selectedSchool ?? '',
         );
-
-        if(studentData == null){
+        if(isValid){
+          await _prefs.setString(_currentUserIdKey, rememberedId);
+          Navigator.pushReplacement(
+              context, MaterialPageRoute(builder: (_) => const HomeScreenMain()));
+        }else{
           setState(() => _isLoading = false);
-          _showErrorSnackBar('自动登录失败，用户信息不存在');
-          return;
-        }
-
-
-        final isValid = await _handleNormalLogin(
-            rememberedPassword,
-            studentData,
-        );
-          if(isValid){
-            await _prefs.setString(_currentUserIdKey, rememberedId);
-           Navigator.pushReplacement(
-               context, MaterialPageRoute(builder: (_) => const HomeScreenMain()));
-         }else{
-           setState(() => _isLoading = false);
-           _showErrorSnackBar('自动登录失败，请重试');
-         }
-      } catch (e) {
-          setState(() => _isLoading = false);
-          print('Error during auto login: $e');
           _showErrorSnackBar('自动登录失败，请重试');
+        }
+      } catch (e) {
+        setState(() => _isLoading = false);
+        print('Error during auto login: $e');
+        _showErrorSnackBar('自动登录失败，请重试');
       }
     }
     if(flg){
-        flg=false;
+      flg=false;
     }
+
   }
 
   Future<void> _handleLogin() async {
@@ -205,13 +205,12 @@ class _LoginScreenState extends State<LoginScreen> {
       final password = _passwordController.text;
       final school = _selectedSchool;
 
-
       final isValid = await _verifyStudent(
         studentId: studentId,
         name: name,
         className: _selectedClassName!,
         password: password,
-          school: school ?? '',
+        school: school ?? '',
       );
       if (isValid) {
         await _saveRememberMe();
@@ -236,6 +235,7 @@ class _LoginScreenState extends State<LoginScreen> {
     } finally {
       setState(() => _isLoading = false);
     }
+
   }
 
   Future<String?> _showCaptchaDialog() async {
@@ -322,7 +322,24 @@ class _LoginScreenState extends State<LoginScreen> {
                       textAlign: TextAlign.center,
                     ),
                     const SizedBox(height: 20),
-                   _buildTextFormField(
+                    buildTextFormField(
+                      controller: _emailController,
+                      labelText: '邮箱',
+                      hintText: '请输入你的邮箱',
+                      prefixIcon: Icons.email,
+                      keyboardType: TextInputType.emailAddress,
+                      validator: (value) {
+                        if (value == null || value.isEmpty) {
+                          return '邮箱不能为空';
+                        }
+                        if (!value.contains('@')) {
+                          return '邮箱格式不正确';
+                        }
+                        return null;
+                      },
+                    ),
+                    const SizedBox(height: 16),
+                    buildTextFormField(
                         controller: _studentIdController,
                         labelText: '学号',
                         hintText: '请输入你的学号',
@@ -338,7 +355,7 @@ class _LoginScreenState extends State<LoginScreen> {
                           return null;
                         }),
                     const SizedBox(height: 16),
-                   _buildTextFormField(
+                    buildTextFormField(
                         controller: _nameController,
                         labelText: '姓名',
                         hintText: '请输入你的姓名',
@@ -350,73 +367,71 @@ class _LoginScreenState extends State<LoginScreen> {
                           return null;
                         }),
                     const SizedBox(height: 16),
-                      DropdownButtonFormField<String>(
-                       decoration: InputDecoration(
-                          labelText: '区',
-                         hintText: '请选择区',
-                           filled: true,
-                           fillColor: Colors.white,
-                           border: OutlineInputBorder(
-                              borderRadius: BorderRadius.circular(8),
-                                borderSide: BorderSide.none,
-                           ),
+                    DropdownButtonFormField<String>(
+                      decoration: InputDecoration(
+                        labelText: '区',
+                        hintText: '请选择区',
+                        filled: true,
+                        fillColor: Colors.white,
+                        border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(8),
+                          borderSide: BorderSide.none,
                         ),
-                       value: _selectedDistrict,
-                        items: schoolList.keys.map((district) => DropdownMenuItem(
-                            value: district,
-                            child: Text(district),
-                            )).toList(),
-                       onChanged: (value) {
+                      ),
+                      value: _selectedDistrict,
+                      items: schoolList.keys.map((district) => DropdownMenuItem(
+                        value: district,
+                        child: Text(district),
+                      )).toList(),
+                      onChanged: (value) {
                         setState(() {
                           _selectedDistrict = value;
                           _selectedSchool = null;
                           _selectedGrade = null;
-                          _selectedClass = null;
                           _updateClassValue();
                         });
                       },
-                        validator: (value) {
-                           if (value == null || value.isEmpty) {
-                             return '请选择区';
-                           }
-                           return null;
-                         },
-                      ),
+                      validator: (value) {
+                        if (value == null || value.isEmpty) {
+                          return '请选择区';
+                        }
+                        return null;
+                      },
+                    ),
                     const SizedBox(height: 16),
-                     DropdownButtonFormField<String>(
-                       decoration: InputDecoration(
-                          labelText: '学校',
-                         hintText: '请选择学校',
-                           filled: true,
-                           fillColor: Colors.white,
-                           border: OutlineInputBorder(
-                              borderRadius: BorderRadius.circular(8),
-                                borderSide: BorderSide.none,
-                           ),
+                    DropdownButtonFormField<String>(
+                      decoration: InputDecoration(
+                        labelText: '学校',
+                        hintText: '请选择学校',
+                        filled: true,
+                        fillColor: Colors.white,
+                        border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(8),
+                          borderSide: BorderSide.none,
                         ),
-                       value: _selectedSchool,
-                        items: _selectedDistrict != null
-                            ? schoolList[_selectedDistrict]?.map((school) => DropdownMenuItem(
-                            value: school,
-                            child: Text(school),
-                            
-                         )).toList()
-                            : [],
-                       onChanged: (value) {
+                      ),
+                      value: _selectedSchool,
+                      items: _selectedDistrict != null
+                          ? schoolList[_selectedDistrict]?.map((school) => DropdownMenuItem(
+                        value: school,
+                        child: Text(school),
+
+                      )).toList()
+                          : [],
+                      onChanged: (value) {
                         setState(() {
                           _selectedSchool = value;
                           _selectedGrade = null;
-                          _selectedClass = null;
-                           _updateClassValue();
+                          _updateClassValue();
                         });
                       },
-                       validator: (value) {
-                         if (value == null || value.isEmpty) {
-                           return '请选择学校';
-                         }
-                         return null;
-                       },
-                     ),
+                      validator: (value) {
+                        if (value == null || value.isEmpty) {
+                          return '请选择学校';
+                        }
+                        return null;
+                      },
+                    ),
                     const SizedBox(height: 16),
                     Row(
                       children: [
@@ -447,11 +462,11 @@ class _LoginScreenState extends State<LoginScreen> {
                             ))
                                 .toList(),
                             onChanged: (value) {
-                                 setState(() {
-                                   _selectedGrade = value;
-                                   _selectedClass = null;
-                                    _updateClassValue();
-                                 });
+                              setState(() {
+                                _selectedGrade = value;
+                                _selectedClass = null;
+                                _updateClassValue();
+                              });
 
                             },
                             validator: (value) {
@@ -483,10 +498,10 @@ class _LoginScreenState extends State<LoginScreen> {
                             ))
                                 .toList(),
                             onChanged: (value) {
-                               setState(() {
+                              setState(() {
                                 _selectedClass = value;
-                                 _updateClassValue();
-                               });
+                                _updateClassValue();
+                              });
                             },
                             validator: (value) {
                               if (value == null) {
@@ -499,7 +514,7 @@ class _LoginScreenState extends State<LoginScreen> {
                       ],
                     ),
                     const SizedBox(height: 16),
-                   _buildTextFormField(
+                    buildTextFormField(
                         controller: _passwordController,
                         labelText: '密码',
                         hintText: '请输入你的密码',
@@ -581,10 +596,10 @@ class _LoginScreenState extends State<LoginScreen> {
                       children: [
                         TextButton(
                           onPressed: _showContactDialog,
-                           child: const Text(
-                             '忘记密码？',
-                             style: TextStyle(color: Colors.blueGrey),
-                            ),
+                          child: const Text(
+                            '忘记密码？',
+                            style: TextStyle(color: Colors.blueGrey),
+                          ),
                         ),
                         TextButton(
                           onPressed: () {
@@ -612,7 +627,7 @@ class _LoginScreenState extends State<LoginScreen> {
     );
   }
 
-  TextFormField _buildTextFormField({
+  TextFormField buildTextFormField({
     required TextEditingController controller,
     required String labelText,
     required String hintText,
@@ -644,48 +659,46 @@ class _LoginScreenState extends State<LoginScreen> {
     );
   }
 
-  String _generateSalt() {
-    final random = Random.secure();
-    final saltBytes = List<int>.generate(16, (_) => random.nextInt(256));
-    return base64Encode(saltBytes);
-  }
-
-  String _generateHash(String password, String salt) {
-    final bytes = utf8.encode(password + salt);
-    final digest = sha256.convert(bytes);
-    return digest.toString();
-  }
-
   Future<bool> _verifyStudent({
     required String studentId,
     required String name,
     required String className,
     required String password,
-       required String school,
+    required String school,
   }) async {
     try {
-     final studentData = await _fetchStudentData(studentId, name, school,className: className);
+      final studentData = await _fetchStudentData(studentId, name, school,className: className);
       if (studentData == null) {
         return false;
       }
-      return _handleNormalLogin(password, studentData);
+      final email = _emailController.text.trim(); // 获取用户输入的邮箱地址
+      // 使用 Supabase Auth 登录
+      final res = await Supabase.instance.client.auth.signInWithPassword(
+        email: email, // 使用用户提供的邮件地址
+        password: password,
+      );
+      if (res.session != null) {
+        return true;
+      } else {
+        return false;
+      }
     } catch (e) {
       print('Error during verifyStudent: $e');
       return false;
     }
   }
 
-     Future<Map<String, dynamic>?> _fetchStudentData(
+  Future<Map<String, dynamic>?> _fetchStudentData(
       String studentId, String name,String school,{String? className}) async {
-     final query = Supabase.instance.client
-         .from('students')
-         .select()
-         .eq('student_id', studentId)
-         .eq('name', name)
-          .eq('school', school);
-     if(className != null){
-        query.eq('class_name',className);
-     }
+    final query = Supabase.instance.client
+        .from('students')
+        .select()
+        .eq('student_id', studentId)
+        .eq('name', name)
+        .eq('school', school);
+    if(className != null){
+      query.eq('class_name',className);
+    }
     final response = await query;
     if (response.isEmpty) {
       return null;
@@ -695,9 +708,15 @@ class _LoginScreenState extends State<LoginScreen> {
 
   Future<bool> _handleNormalLogin(
       String password, Map<String, dynamic> studentData) async {
-    final storedHash = studentData['password_hash'];
-    final salt = studentData['salt'];
-    final inputHash = _generateHash(password, salt);
-    return inputHash == storedHash;
+    // 使用 Supabase Auth 登录
+    final res = await Supabase.instance.client.auth.signInWithPassword(
+      email: '${studentData['student_id']}@example.com', // 替换为你的邮件地址生成策略
+      password: password,
+    );
+    if (res.session != null) {
+      return true;
+    } else {
+      return false;
+    }
   }
 }
