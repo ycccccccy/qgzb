@@ -9,18 +9,20 @@ import 'package:flutter/services.dart';
 enum AiAssistanceMode {
   generate,
   polish,
-  write, // 添加写作模式
+  write,
 }
 
-// 修改后的 AIAssistedWritingScreen 代码，使其可以接收初始文本和模式
 class AIAssistedWritingScreen extends StatefulWidget {
   final String? initialText;
   final AiAssistanceMode mode;
 
-  const AIAssistedWritingScreen({Key? key, this.initialText, this.mode = AiAssistanceMode.generate}) : super(key: key);
+  const AIAssistedWritingScreen(
+      {Key? key, this.initialText, this.mode = AiAssistanceMode.generate})
+      : super(key: key);
 
   @override
-  _AIAssistedWritingScreenState createState() => _AIAssistedWritingScreenState();
+  _AIAssistedWritingScreenState createState() =>
+      _AIAssistedWritingScreenState();
 }
 
 class _AIAssistedWritingScreenState extends State<AIAssistedWritingScreen> {
@@ -30,34 +32,61 @@ class _AIAssistedWritingScreenState extends State<AIAssistedWritingScreen> {
   String _generatedReasoningText = '';
   String? _errorMessage;
   bool _isExpanded = true;
-  AiAssistanceMode _selectedMode = AiAssistanceMode.generate; // 默认模式
+  AiAssistanceMode _selectedMode = AiAssistanceMode.generate;
 
-  // !!! 替换成你自己的 API Key !!!
-  final String apiKey = "sk-fseyemmlpiggdhjoqhsztbvinavjrjhyhmrqsoghbtkwaxhp";
+  bool _thinkingStarted = false;
+  String _accumulatedReasoning = '';
+
+  DateTime? _reasoningStartTime;
+  DateTime? _reasoningEndTime;
+  String _thinkingDurationString = '';
+  Timer? _thinkingTimer;
+
+  final String apiKey =
+      "sk-fseyemmlpiggdhjoqhsztbvinavjrjhyhmrqsoghbtkwaxhp"; // 示例 API Key
   final String apiUrl = "https://api.siliconflow.cn/v1/chat/completions";
+  // 模型选择相关变量
+  String _selectedModel = "deepseek-ai/DeepSeek-R1-Distill-Qwen-7B";
+  final List<Map<String, String>> _availableModels = [
+    {"id": "deepseek-ai/DeepSeek-R1-Distill-Qwen-7B", "name": "Flash"},
+    {"id": "deepseek-ai/DeepSeek-R1-Distill-Llama-8B", "name": "Advanced"},
+  ];
 
   @override
   void initState() {
     super.initState();
-    _selectedMode = AiAssistanceMode.generate; // 默认选择聊天模式
+    _selectedMode = AiAssistanceMode.generate;
     if (widget.initialText != null && widget.initialText!.isNotEmpty) {
       _promptController.text = widget.initialText!;
-      _selectedMode = AiAssistanceMode.polish; // 如果有初始文本，默认选择润色模式
+      _selectedMode = AiAssistanceMode.polish;
     }
+    _thinkingStarted = false;
+    _accumulatedReasoning = '';
+    _reasoningStartTime = null;
+    _reasoningEndTime = null;
+    _thinkingDurationString = '';
+    _thinkingTimer = null;
   }
 
   @override
   void dispose() {
     _promptController.dispose();
+    _thinkingTimer?.cancel();
     super.dispose();
   }
-
-  Future<void> _generateText(AiAssistanceMode mode) async {
-    setState(() {
+      Future<void> _generateText(AiAssistanceMode mode) async {
+    // ... (之前的代码保持不变)
+      setState(() {
       _isLoading = true;
       _generatedContentText = '';
       _generatedReasoningText = '';
       _errorMessage = null;
+      _thinkingStarted = false; // Reset thinking state
+      _accumulatedReasoning = ''; // Reset accumulated reasoning
+      _reasoningStartTime = null; // 重置思考开始时间
+      _reasoningEndTime = null;   // 重置思考结束时间
+      _thinkingDurationString = ''; // 重置思考时长字符串
+      _thinkingTimer = null; // 重置 Timer
     });
 
     final prompt = _promptController.text.trim();
@@ -99,24 +128,23 @@ class _AIAssistedWritingScreenState extends State<AIAssistedWritingScreen> {
           'Content-Type': 'application/json',
         })
         ..body = jsonEncode({
-          "model": "deepseek-ai/DeepSeek-R1-Distill-Llama-8B",
+          "model": _selectedModel, // 使用选择的模型
           "messages": [
             {"role": "user", "content": aiPrompt}
           ],
           "stream": true,
-          "max_tokens": 8192,
-          "temperature": 1.4,
+          "max_tokens": 16384,
+          "temperature": 1.0,
           "top_p": 0.7,
-          "top_k": 50,
-          "frequency_penalty": 0.5,
+          "top_k": 15,
+          "frequency_penalty": 0.1 ,
           "n": 1,
           "response_format": {"type": "text"},
         });
-
-      final streamedResponse = await http.Client().send(request);
+      // ... 其余部分保持不变
+       final streamedResponse = await http.Client().send(request);
 
       if (streamedResponse.statusCode == 200) {
-        String accumulatedJsonString = '';
 
         final transformer = StreamTransformer<List<int>, String>.fromBind((stream) async* {
           await for (final chunk in stream) {
@@ -137,30 +165,54 @@ class _AIAssistedWritingScreenState extends State<AIAssistedWritingScreen> {
               return;
             }
 
-            accumulatedJsonString += jsonStr;
-
             try {
-              final responseJson = jsonDecode(accumulatedJsonString);
+              final responseJson = jsonDecode(jsonStr);
               if (responseJson['choices'] != null && responseJson['choices'].isNotEmpty) {
                 final delta = responseJson['choices'][0]['delta'];
                 final contentChunk = delta['content'];
+                final reasoningChunk = delta['reasoning_content'];
+
+                if (reasoningChunk != null) {
+                  // 启动计时器，如果还没有启动
+                  if (_reasoningStartTime == null) {
+                    _reasoningStartTime = DateTime.now();
+                    // 启动 Timer，每秒更新一次思考时长
+                    _thinkingTimer = Timer.periodic(const Duration(seconds: 1), (timer) {
+                      if (_reasoningStartTime != null && _reasoningEndTime == null) {
+                        Duration duration = DateTime.now().difference(_reasoningStartTime!);
+                        int seconds = duration.inSeconds;
+                        setState(() { // 使用 setState 触发 UI 刷新
+                          _thinkingDurationString = ' (已深度思考 ${seconds} 秒)';
+                        });
+                      }
+                    });
+                  }
+                  setState(() {
+                    _generatedReasoningText += reasoningChunk;
+                  });
+                }
 
                 if (contentChunk != null) {
+                  // 停止计时器并计算最终时长，如果计时器已经启动
+                  if (_thinkingTimer != null && _reasoningEndTime == null) {
+                    _reasoningEndTime = DateTime.now();
+                    _thinkingTimer!.cancel(); // 停止 Timer
+                    Duration duration = _reasoningEndTime!.difference(_reasoningStartTime!);
+                    int seconds = duration.inSeconds;
+                    _thinkingDurationString = ' (已深度思考 ${seconds} 秒)';
+                  }
                   setState(() {
-                    _generatedContentText = contentChunk;
+                    _generatedContentText += contentChunk;
                   });
                 }
               }
 
-              accumulatedJsonString = '';
-
             } catch (e) {
-              print("JSON 解析错误: $e, 数据: $accumulatedJsonString");
+              print("JSON 解析错误: $e, 数据: $jsonStr");
               setState(() {
                 _isLoading = false;
                 _errorMessage = "AI 响应JSON解析错误";
               });
-
             }
           }
         });
@@ -186,8 +238,7 @@ class _AIAssistedWritingScreenState extends State<AIAssistedWritingScreen> {
       }
     }
   }
-
-  @override
+    @override
   Widget build(BuildContext context) {
     final isMobile = MediaQuery.of(context).size.width < 600;
     final theme = Theme.of(context);
@@ -209,7 +260,6 @@ class _AIAssistedWritingScreenState extends State<AIAssistedWritingScreen> {
         promptHintText = '请输入你希望 AI 帮你写的内容提示';
     }
 
-
     return Scaffold(
       backgroundColor: theme.colorScheme.surface,
       appBar: PreferredSize(
@@ -224,46 +274,93 @@ class _AIAssistedWritingScreenState extends State<AIAssistedWritingScreen> {
         padding: EdgeInsets.all(isMobile ? 16 : 32),
         child: SingleChildScrollView(
           child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
+            crossAxisAlignment: CrossAxisAlignment.start, 
             children: [
-
-              // 模式选择器
-              SegmentedButton<AiAssistanceMode>(
-                segments: const <ButtonSegment<AiAssistanceMode>>[
-                  ButtonSegment<AiAssistanceMode>(
-                    value: AiAssistanceMode.generate,
-                    label: Text('聊天模式'),
-                  ),
-                  ButtonSegment<AiAssistanceMode>(
-                    value: AiAssistanceMode.polish,
-                    label: Text('润色模式'),
-                  ),
-                   ButtonSegment<AiAssistanceMode>(
-                    value: AiAssistanceMode.write,
-                    label: Text('写作模式'),
-                  ),
-                ],
-                selected: <AiAssistanceMode>{_selectedMode},
-                onSelectionChanged: (Set<AiAssistanceMode> newSelection) {
-                  setState(() {
-                    _selectedMode = newSelection.first;
-                  });
-                },
+              // 模型选择 (居中)
+              Center(
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    const Text(
+                      "选择模型: ",
+                    ),
+                    const SizedBox(width: 8),
+                    DropdownButton<String>(
+                      value: _selectedModel,
+                      onChanged: (String? newValue) {
+                        setState(() {
+                          _selectedModel = newValue!;
+                        });
+                      },
+                      isExpanded: false,
+                      underline: Container(),
+                      items: _availableModels
+                          .map<DropdownMenuItem<String>>(
+                              (Map<String, String> model) {
+                        return DropdownMenuItem<String>(
+                          value: model["id"]!,
+                          child: Text(model["name"]!),
+                        );
+                      }).toList(),
+                    ),
+                  ],
+                ),
               ),
+
+              const SizedBox(height: 16),
+
+              // 模式选择 (横向充满，内容居中)
+SizedBox(
+    width: double.infinity,
+    child: IntrinsicWidth(
+      child: Align(
+        alignment: Alignment.center,
+        child: SegmentedButton<AiAssistanceMode>(
+          // ... (SegmentedButton 的内容)
+          segments: const <ButtonSegment<AiAssistanceMode>>[
+            ButtonSegment<AiAssistanceMode>(
+              value: AiAssistanceMode.generate,
+              label: Text('聊天模式'),
+            ),
+            ButtonSegment<AiAssistanceMode>(
+              value: AiAssistanceMode.polish,
+              label: Text('润色文本'),
+            ),
+            ButtonSegment<AiAssistanceMode>(
+              value: AiAssistanceMode.write,
+              label: Text('写作模式'),
+            ),
+          ],
+          selected: <AiAssistanceMode>{_selectedMode},
+          onSelectionChanged: (Set<AiAssistanceMode> newSelection) {
+            setState(() {
+              _selectedMode = newSelection.first;
+            });
+          },
+        ),
+      ),
+    ),
+),
+
               const SizedBox(height: 10),
 
-              TextFormField(
-                controller: _promptController,
-                decoration: InputDecoration(
-                  labelText: promptLabelText,
-                  hintText: promptHintText,
-                  border: InputBorder.none,
-                  filled: true,
-                  fillColor: theme.colorScheme.surfaceContainerHighest,
-                  contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+              // TextFormField (居中)
+              Center(
+                child: TextFormField(
+                  controller: _promptController,
+                  decoration: InputDecoration(
+                    labelText: promptLabelText,
+                    hintText: promptHintText,
+                    border: InputBorder.none,
+                    filled: true,
+                    fillColor: theme.colorScheme.surfaceContainerHighest,
+                    contentPadding:
+                        const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                  ),
+                  maxLines: 3,
                 ),
-                maxLines: 3,
               ),
+
               const SizedBox(height: 10),
 
               if (_errorMessage != null)
@@ -278,18 +375,25 @@ class _AIAssistedWritingScreenState extends State<AIAssistedWritingScreen> {
 
               // 思考过程
               ExpansionTile(
-                title: const Text("思考过程", style: TextStyle(fontWeight: FontWeight.bold)),
+                title: Text("思考过程${_thinkingDurationString}", // 动态拼接思考时长字符串
+                    style: const TextStyle(fontWeight: FontWeight.bold)),
                 initiallyExpanded: _isExpanded,
                 children: [
                   Padding(
                     padding: const EdgeInsets.symmetric(horizontal: 16.0),
-                    child: Text(_generatedReasoningText, style: theme.textTheme.bodyMedium),
+                    child: MarkdownBody(
+                      // 使用 MarkdownBody
+                      data: _generatedReasoningText.replaceAll(
+                          RegExp(r'</?think>'), ''), // 去除标签 (虽然实际上已经没有这个标签了)
+                      styleSheet: MarkdownStyleSheet.fromTheme(Theme.of(context)),
+                    ),
                   ),
                 ],
               ),
 
               // 修改：AI 最终的回答放在文本框里面，可以选择复制
-              Column( // Wrap with a Column to control layout
+              Column(
+                // Wrap with a Column to control layout
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
                   Row(
@@ -297,7 +401,8 @@ class _AIAssistedWritingScreenState extends State<AIAssistedWritingScreen> {
                     children: [
                       Text(
                         'AI 生成内容',
-                        style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+                        style:
+                            TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
                       ),
                       IconButton(
                         onPressed: () {
@@ -308,17 +413,17 @@ class _AIAssistedWritingScreenState extends State<AIAssistedWritingScreen> {
                       ),
                     ],
                   ),
-                   SelectableText(
-                     _generatedContentText.isNotEmpty
+                  // 使用 MarkdownBody 渲染 AI 生成的内容
+                  MarkdownBody(
+                    data: _generatedContentText.isNotEmpty
                         ? _generatedContentText
                         : "AI 生成的文本将显示在这里",
-                     style: theme.textTheme.bodyMedium,
-                   )
+                    styleSheet: MarkdownStyleSheet.fromTheme(Theme.of(context)),
+                    selectable: true, // 允许选择文本
+                  )
                 ],
               ),
-
               const SizedBox(height: 20),
-
               // 发送按钮
               Align(
                 alignment: Alignment.center,
@@ -326,16 +431,19 @@ class _AIAssistedWritingScreenState extends State<AIAssistedWritingScreen> {
                   onPressed: _isLoading ? null : () => _generateText(_selectedMode),
                   icon: _isLoading
                       ? const SizedBox(
-                    width: 24,
-                    height: 24,
-                    child: CircularProgressIndicator(color: Colors.white),
-                  )
+                          width: 24,
+                          height: 24,
+                          child: CircularProgressIndicator(color: Colors.white),
+                        )
                       : const Icon(Icons.send, color: Colors.white),
-                  label: const Text('发送', style: TextStyle(color: Colors.white)),
+                  label:
+                      const Text('发送', style: TextStyle(color: Colors.white)),
                   style: ElevatedButton.styleFrom(
                     backgroundColor: theme.colorScheme.primary,
-                    padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 24),
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                    padding:
+                        const EdgeInsets.symmetric(vertical: 12, horizontal: 24),
+                    shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12)),
                   ),
                 ),
               ),
