@@ -1,15 +1,13 @@
 import 'dart:convert';
-import 'dart:math';
-
 import 'package:crypto/crypto.dart';
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import 'home_screen_main.dart';
-import 'simple_captcha.dart';
-import 'register_screen.dart';
+import 'home_screen_main.dart'; // 假设的主页
+import 'simple_captcha.dart'; // 假设的验证码组件
+import 'register_screen.dart'; // 假设的注册页面
 import 'package:flutter/services.dart';
-import 'school_data.dart';
+import 'school_data.dart';  //假设的
 
 // 定义 SharedPreferences 的 Key 常量
 const String _rememberMeKey = 'rememberMe';
@@ -17,7 +15,7 @@ const String _autoLoginKey = 'autoLogin';
 const String _rememberedIdKey = 'rememberedId';
 const String _rememberedNameKey = 'rememberedName';
 const String _rememberedPasswordKey = 'rememberedPassword';
-const String _currentUserIdKey = 'current_user_id';
+const String _currentUserIdKey = 'current_user_id'; // 用于存储 auth_user_id
 const String _selectedDistrictKey = 'selectedDistrict';
 const String _selectedSchoolKey = 'selectedSchool';
 const String _selectedGradeKey = 'selectedGrade';
@@ -25,12 +23,14 @@ const String _selectedClassKey = 'selectedClass';
 const String _rememberedEmailKey = 'rememberedEmail'; //  新增存储 email 的 key
 
 // 忘记密码的联系方式
-const String _contactInfo = '联系管理员：\n微信:\nx2463274\n邮箱:\n3646834681@qq.com\nliujingxuan200705@163.com';
+const String _contactInfo =
+    '联系管理员：\n微信:\nx2463274\n邮箱:\n3646834681@qq.com\nliujingxuan200705@163.com';
 
-bool flg=false;
+bool flg = false;
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
+
   @override
   _LoginScreenState createState() => _LoginScreenState();
 }
@@ -40,7 +40,8 @@ class _LoginScreenState extends State<LoginScreen> {
   final TextEditingController _studentIdController = TextEditingController();
   final TextEditingController _nameController = TextEditingController();
   final TextEditingController _passwordController = TextEditingController();
-  final TextEditingController _emailController = TextEditingController(); //  新增 email controller
+  final TextEditingController _emailController =
+      TextEditingController(); //  新增 email controller
   bool _passwordVisible = false;
   bool _isLoading = false;
   bool _rememberMe = false;
@@ -59,7 +60,7 @@ class _LoginScreenState extends State<LoginScreen> {
     _loadSharedPreferences();
   }
 
-  Future<void> _loadSharedPreferences() async {
+    Future<void> _loadSharedPreferences() async {
     _prefs = await SharedPreferences.getInstance();
     _loadRememberMe();
     _attemptAutoLogin();
@@ -86,18 +87,18 @@ class _LoginScreenState extends State<LoginScreen> {
     }
   }
 
-
   Future<void> _loadRememberMe() async {
-
     setState(() {
       _rememberMe = _prefs.getBool(_rememberMeKey) ?? false;
       _autoLogin = _prefs.getBool(_autoLoginKey) ?? false;
       if (_rememberMe || _autoLogin) {
         _studentIdController.text = _prefs.getString(_rememberedIdKey) ?? '';
         _nameController.text = _prefs.getString(_rememberedNameKey) ?? '';
-        _emailController.text = _prefs.getString(_rememberedEmailKey) ?? ''; // 读取 email
+        _emailController.text =
+            _prefs.getString(_rememberedEmailKey) ?? ''; // 读取 email
         if (_autoLogin) {
-          _passwordController.text = _prefs.getString(_rememberedPasswordKey) ?? '';
+          _passwordController.text =
+              _prefs.getString(_rememberedPasswordKey) ?? '';
         }
       }
       _selectedDistrict = _prefs.getString(_selectedDistrictKey);
@@ -106,27 +107,25 @@ class _LoginScreenState extends State<LoginScreen> {
       _selectedClass = _prefs.getInt(_selectedClassKey);
       _updateClassValue();
     });
-
-
   }
 
   Future<void> _saveRememberMe() async {
     await _prefs.setBool(_rememberMeKey, _rememberMe);
     await _prefs.setBool(_autoLoginKey, _autoLogin);
-    if(_rememberMe || _autoLogin){
+    if (_rememberMe || _autoLogin) {
       await _prefs.setString(_rememberedIdKey, _studentIdController.text);
       await _prefs.setString(_rememberedNameKey, _nameController.text);
       await _prefs.setString(_rememberedEmailKey, _emailController.text); // 存储 email
       if (_autoLogin) {
-        await _prefs.setString(_rememberedPasswordKey,_passwordController.text);
-      }else{
+        await _prefs.setString(_rememberedPasswordKey, _passwordController.text);
+      } else {
         await _prefs.remove(_rememberedPasswordKey);
       }
       await _prefs.setString(_selectedDistrictKey, _selectedDistrict ?? '');
       await _prefs.setString(_selectedSchoolKey, _selectedSchool ?? '');
       await _prefs.setString(_selectedGradeKey, _selectedGrade ?? '');
       await _prefs.setInt(_selectedClassKey, _selectedClass ?? 0);
-    }else{
+    } else {
       await _prefs.remove(_rememberedIdKey);
       await _prefs.remove(_rememberedNameKey);
       await _prefs.remove(_rememberedPasswordKey);
@@ -140,28 +139,34 @@ class _LoginScreenState extends State<LoginScreen> {
 
   void _onCaptchaCompleted(String value) {}
 
-  Future<(String?, String?, String?,String?, String?,int?)> _loadAutoLoginInfo() async {
+  Future<(String?, String?, String?, String?, String?, int?)>
+      _loadAutoLoginInfo() async {
     final rememberedId = _prefs.getString(_rememberedIdKey);
     final rememberedName = _prefs.getString(_rememberedNameKey);
     final rememberedPassword = _prefs.getString(_rememberedPasswordKey);
     final selectedDistrict = _prefs.getString(_selectedDistrictKey);
     final selectedSchool = _prefs.getString(_selectedSchoolKey);
     final selectedClass = _prefs.getInt(_selectedClassKey);
-    return (rememberedId, rememberedName, rememberedPassword,selectedDistrict, selectedSchool,selectedClass);
+    return (rememberedId, rememberedName, rememberedPassword, selectedDistrict,
+        selectedSchool, selectedClass);
   }
-
 
   Future<void> _attemptAutoLogin() async {
     final autoLogin = _prefs.getBool(_autoLoginKey) ?? false;
 
-    final (rememberedId, rememberedName, rememberedPassword,selectedDistrict,selectedSchool,selectedClass) =
-    await _loadAutoLoginInfo();
-    if (autoLogin && rememberedId != null && rememberedName != null &&
-        rememberedPassword != null && selectedDistrict != null &&
-        selectedSchool != null && selectedClass != null&&!flg) {
+    final (rememberedId, rememberedName, rememberedPassword, selectedDistrict,
+            selectedSchool, selectedClass) =
+        await _loadAutoLoginInfo();
+    if (autoLogin &&
+        rememberedId != null &&
+        rememberedName != null &&
+        rememberedPassword != null &&
+        selectedDistrict != null &&
+        selectedSchool != null &&
+        selectedClass != null &&
+        !flg) {
       setState(() => _isLoading = true);
       try {
-
         final isValid = await _verifyStudent(
           studentId: rememberedId,
           name: rememberedName,
@@ -169,11 +174,11 @@ class _LoginScreenState extends State<LoginScreen> {
           password: rememberedPassword,
           school: selectedSchool ?? '',
         );
-        if(isValid){
-          await _prefs.setString(_currentUserIdKey, rememberedId);
+        if (isValid) {
+          // await _prefs.setString(_currentUserIdKey, rememberedId); // 不再需要
           Navigator.pushReplacement(
               context, MaterialPageRoute(builder: (_) => const HomeScreenMain()));
-        }else{
+        } else {
           setState(() => _isLoading = false);
           _showErrorSnackBar('自动登录失败，请重试');
         }
@@ -183,10 +188,9 @@ class _LoginScreenState extends State<LoginScreen> {
         _showErrorSnackBar('自动登录失败，请重试');
       }
     }
-    if(flg){
-      flg=false;
+    if (flg) {
+      flg = false;
     }
-
   }
 
   Future<void> _handleLogin() async {
@@ -214,7 +218,7 @@ class _LoginScreenState extends State<LoginScreen> {
       );
       if (isValid) {
         await _saveRememberMe();
-        await _prefs.setString(_currentUserIdKey, studentId);
+        // await _prefs.setString(_currentUserIdKey, studentId); // 不再需要存学号
         Navigator.pushReplacement(
             context, MaterialPageRoute(builder: (_) => const HomeScreenMain()));
       } else {
@@ -235,7 +239,6 @@ class _LoginScreenState extends State<LoginScreen> {
     } finally {
       setState(() => _isLoading = false);
     }
-
   }
 
   Future<String?> _showCaptchaDialog() async {
@@ -248,8 +251,8 @@ class _LoginScreenState extends State<LoginScreen> {
           title: const Text('验证码验证',
               textAlign: TextAlign.center,
               style: TextStyle(color: Colors.black87)),
-          shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(10)),
+          shape:
+              RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
           content: SimpleCaptcha(
             onCompleted: (value) {
               Navigator.of(context).pop(value);
@@ -304,7 +307,7 @@ class _LoginScreenState extends State<LoginScreen> {
             elevation: 4,
             color: Colors.grey[50],
             shape:
-            RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
             child: Padding(
               padding: EdgeInsets.all(isMobile ? 20 : 40),
               child: Form(
@@ -379,10 +382,12 @@ class _LoginScreenState extends State<LoginScreen> {
                         ),
                       ),
                       value: _selectedDistrict,
-                      items: schoolList.keys.map((district) => DropdownMenuItem(
-                        value: district,
-                        child: Text(district),
-                      )).toList(),
+                      items: schoolList.keys
+                          .map((district) => DropdownMenuItem(
+                                value: district,
+                                child: Text(district),
+                              ))
+                          .toList(),
                       onChanged: (value) {
                         setState(() {
                           _selectedDistrict = value;
@@ -412,11 +417,12 @@ class _LoginScreenState extends State<LoginScreen> {
                       ),
                       value: _selectedSchool,
                       items: _selectedDistrict != null
-                          ? schoolList[_selectedDistrict]?.map((school) => DropdownMenuItem(
-                        value: school,
-                        child: Text(school),
-
-                      )).toList()
+                          ? schoolList[_selectedDistrict]
+                              ?.map((school) => DropdownMenuItem(
+                                    value: school,
+                                    child: Text(school),
+                                  ))
+                              .toList()
                           : [],
                       onChanged: (value) {
                         setState(() {
@@ -457,9 +463,9 @@ class _LoginScreenState extends State<LoginScreen> {
                               '高三',
                             ]
                                 .map((grade) => DropdownMenuItem(
-                              value: grade,
-                              child: Text(grade),
-                            ))
+                                      value: grade,
+                                      child: Text(grade),
+                                    ))
                                 .toList(),
                             onChanged: (value) {
                               setState(() {
@@ -467,7 +473,6 @@ class _LoginScreenState extends State<LoginScreen> {
                                 _selectedClass = null;
                                 _updateClassValue();
                               });
-
                             },
                             validator: (value) {
                               if (value == null || value.isEmpty) {
@@ -493,9 +498,9 @@ class _LoginScreenState extends State<LoginScreen> {
                             value: _selectedClass,
                             items: List.generate(50, (index) => index + 1)
                                 .map((classNum) => DropdownMenuItem(
-                              value: classNum,
-                              child: Text('$classNum班'),
-                            ))
+                                      value: classNum,
+                                      child: Text('$classNum班'),
+                                    ))
                                 .toList(),
                             onChanged: (value) {
                               setState(() {
@@ -587,8 +592,8 @@ class _LoginScreenState extends State<LoginScreen> {
                       child: _isLoading
                           ? const CircularProgressIndicator(color: Colors.white)
                           : const Text('登录',
-                          style:
-                          TextStyle(fontSize: 18, color: Colors.white)),
+                              style:
+                                  TextStyle(fontSize: 18, color: Colors.white)),
                     ),
                     const SizedBox(height: 10),
                     Row(
@@ -616,7 +621,6 @@ class _LoginScreenState extends State<LoginScreen> {
                         ),
                       ],
                     ),
-
                   ],
                 ),
               ),
@@ -659,7 +663,7 @@ class _LoginScreenState extends State<LoginScreen> {
     );
   }
 
-  Future<bool> _verifyStudent({
+    Future<bool> _verifyStudent({
     required String studentId,
     required String name,
     required String className,
@@ -667,17 +671,22 @@ class _LoginScreenState extends State<LoginScreen> {
     required String school,
   }) async {
     try {
-      final studentData = await _fetchStudentData(studentId, name, school,className: className);
+      final studentData =
+          await _fetchStudentData(studentId, name, school, className: className);
       if (studentData == null) {
         return false;
       }
-      final email = _emailController.text.trim(); // 获取用户输入的邮箱地址
+      final email = _emailController.text.trim(); // 获取用户输入的邮箱
       // 使用 Supabase Auth 登录
       final res = await Supabase.instance.client.auth.signInWithPassword(
-        email: email, // 使用用户提供的邮件地址
+        email: email, // 使用邮箱登录
         password: password,
       );
-      if (res.session != null) {
+      //final userId = res.user?.id;
+      // 重点：登录成功后，保存 auth_user_id
+      if (res.user != null) {
+        final SharedPreferences prefs = await SharedPreferences.getInstance();
+        await prefs.setString(_currentUserIdKey, res.user!.id); // 保存 auth_user_id
         return true;
       } else {
         return false;
@@ -689,34 +698,21 @@ class _LoginScreenState extends State<LoginScreen> {
   }
 
   Future<Map<String, dynamic>?> _fetchStudentData(
-      String studentId, String name,String school,{String? className}) async {
+      String studentId, String name, String school,
+      {String? className}) async {
     final query = Supabase.instance.client
         .from('students')
         .select()
         .eq('student_id', studentId)
         .eq('name', name)
         .eq('school', school);
-    if(className != null){
-      query.eq('class_name',className);
+    if (className != null) {
+      query.eq('class_name', className);
     }
     final response = await query;
     if (response.isEmpty) {
       return null;
     }
     return response[0];
-  }
-
-  Future<bool> _handleNormalLogin(
-      String password, Map<String, dynamic> studentData) async {
-    // 使用 Supabase Auth 登录
-    final res = await Supabase.instance.client.auth.signInWithPassword(
-      email: '${studentData['student_id']}@example.com', // 替换为你的邮件地址生成策略
-      password: password,
-    );
-    if (res.session != null) {
-      return true;
-    } else {
-      return false;
-    }
   }
 }
