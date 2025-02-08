@@ -5,6 +5,7 @@ import 'home_screen_main.dart'; // 假设的主页
 import 'register_screen.dart'; // 假设的注册页面
 import 'package:flutter/services.dart';
 import 'school_data.dart'; //假设的, 如果你不需要注册功能, 这个可以删掉.
+import 'simple_captcha.dart'; // 引入你的 SimpleCaptcha 组件
 
 // 定义 SharedPreferences 的 Key 常量
 const String _rememberMeKey = 'rememberMe';
@@ -12,13 +13,13 @@ const String _autoLoginKey = 'autoLogin';
 const String _rememberedEmailKey = 'rememberedEmail';
 const String _rememberedPasswordKey = 'rememberedPassword';
 const String _currentUserIdKey = 'current_user_id';
-const String _selectedSchoolKey = 'selectedSchool';      //保留
-const String _selectedGradeKey = 'selectedGrade';        //保留
-const String _selectedClassKey = 'selectedClass';        //保留
-const String _rememberedIdKey = 'rememberedId';          //保留
-const String _rememberedNameKey = 'rememberedName';       //保留
+const String _selectedSchoolKey = 'selectedSchool';
+const String _selectedGradeKey = 'selectedGrade';
+const String _selectedClassKey = 'selectedClass';
+const String _rememberedIdKey = 'rememberedId';
+const String _rememberedNameKey = 'rememberedName';
 
-// 忘记密码的联系方式(保持不变)
+// 忘记密码的联系方式
 const String _contactInfo =
     '联系管理员：\n微信:\nx2463274\n邮箱:\n3646834681@qq.com\nliujingxuan200705@163.com';
 
@@ -39,44 +40,42 @@ class _LoginScreenState extends State<LoginScreen> {
   bool _isLoading = false;
   bool _rememberMe = false;
   bool _autoLogin = false;
+  String? _loginError; // 用于存储登录错误信息（显示在表单中）
+  String? _captchaError;
+
 
   late final SharedPreferences _prefs;
 
-  // ---  用于在登录后存储其他信息 ---
   String? _selectedSchool;
   String? _selectedGrade;
   int? _selectedClass;
   String? _rememberedId;
   String? _rememberedName;
-  // --------------------------------------
+
   @override
   void initState() {
     super.initState();
     _loadSharedPreferences();
   }
-
   Future<void> _loadSharedPreferences() async {
     _prefs = await SharedPreferences.getInstance();
     _rememberMe = _prefs.getBool(_rememberMeKey) ?? false;
     _autoLogin = _prefs.getBool(_autoLoginKey) ?? false;
+
     if (_rememberMe || _autoLogin) {
       _emailController.text = _prefs.getString(_rememberedEmailKey) ?? '';
       _passwordController.text = _prefs.getString(_rememberedPasswordKey) ?? '';
-
-      // --- 加载其他的存储数据 ---
       _selectedSchool = _prefs.getString(_selectedSchoolKey);
       _selectedGrade = _prefs.getString(_selectedGradeKey);
       _selectedClass = _prefs.getInt(_selectedClassKey);
       _rememberedId = _prefs.getString(_rememberedIdKey);
       _rememberedName = _prefs.getString(_rememberedNameKey);
-      // --------------------------------
     }
-    // --- 自动登录逻辑 ---
+
+    // 自动登录逻辑 (现在需要验证码)
     if (_autoLogin && !flg) {
-      //直接尝试登录
-      _handleLogin();
+      _showCaptchaDialog(); // 自动登录也显示验证码
     }
-    // ---------------------
   }
 
   @override
@@ -114,83 +113,129 @@ class _LoginScreenState extends State<LoginScreen> {
     }
   }
 
+
+  // 主要的登录处理方法 (显示验证码弹窗)
   Future<void> _handleLogin() async {
     if (!_formKey.currentState!.validate()) {
       return;
     }
+     setState(() {
+        _loginError = null; // 清除之前的登录错误
+      });
+    _showCaptchaDialog(); // 显示验证码弹窗
+  }
 
-    setState(() => _isLoading = true);
+  // 显示验证码弹窗
+  Future<void> _showCaptchaDialog() async {
+     showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) {
+        return AlertDialog(
+          title: const Text('验证'),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Text('请输入验证码：'),
+              const SizedBox(height: 16),
+              SimpleCaptcha(
+                isDialog: true, // 重要！
+                onCompleted: (value) {
+                  Navigator.of(context).pop(); // 关闭弹窗
+                  _login(value); // 进行实际的登录
+                },
+                errorMessage: _captchaError, // 传递验证码错误
+              ),
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () {
+                Navigator.of(context).pop();
+                setState(() {
+                  _captchaError = null; // 取消时清除验证码错误
+                });
+              },
+              child: const Text('取消'),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  // 实际的登录逻辑 (验证通过后调用)
+  Future<void> _login(String captchaCode) async {
+     setState(() => _isLoading = true);
 
     try {
       final email = _emailController.text.trim();
       final password = _passwordController.text;
 
-      // 使用 Supabase Auth 登录
       final res = await Supabase.instance.client.auth.signInWithPassword(
         email: email,
         password: password,
       );
 
       if (res.user != null) {
-        // --- 从数据库获取并保存其他信息 ---
-        final userData = await _fetchUserData(res.user!.id);
+          final userData = await _fetchUserData(res.user!.id);
 
         if (userData != null) {
           _selectedSchool = userData['school'] as String?;
           _selectedGrade = userData['grade'] as String?;
-          _selectedClass = userData['class_number'] as int?; //假设数据库字段是 class_number
+          _selectedClass = userData['class_number'] as int?;
           _rememberedId = userData['student_id'] as String?;
           _rememberedName = userData['name'] as String?;
-
-          // 保存到 SharedPreferences
           await _saveRememberMe();
-
-          // --- 打印所有存储在本地的信息 ---
-          //print('--------- Local Storage Data ---------');
-          //print('Remember Me: ${_prefs.getBool(_rememberMeKey)}');
-          //print('Auto Login: ${_prefs.getBool(_autoLoginKey)}');
-          //print('Email: ${_prefs.getString(_rememberedEmailKey)}');
-          //print('Password: ${_prefs.getString(_rememberedPasswordKey)}');
-          //print('User ID: ${_prefs.getString(_currentUserIdKey)}');
-          //print('School: ${_prefs.getString(_selectedSchoolKey)}');
-          //print('Grade: ${_prefs.getString(_selectedGradeKey)}');
-          //print('Class: ${_prefs.getInt(_selectedClassKey)}');
-          //print('Student ID: ${_prefs.getString(_rememberedIdKey)}');
-          //print('Name: ${_prefs.getString(_rememberedNameKey)}');
-          //print('--------------------------------------');
-          // ----------------------------------
-
         } else {
-          //如果获取信息失败
           _showErrorSnackBar("获取用户信息失败, 请联系管理员");
           setState(() {
             _isLoading = false;
           });
           return;
         }
-        // --------------------------------------
-        await _prefs.setString(_currentUserIdKey, res.user!.id); // 保存 auth_user_id
 
-        // ---  设置 flg 为 true ---
+        await _prefs.setString(_currentUserIdKey, res.user!.id);
         flg = true;
-        // --------------------------
         Navigator.pushReplacement(
           context,
           MaterialPageRoute(builder: (_) => const HomeScreenMain()),
         );
+
       } else {
-        _showErrorSnackBar('邮箱或密码错误');
+         // 不再是通用错误，而是更具体的
+        setState(() {
+          _loginError = '邮箱或密码不正确，请检查后重试。'; // 设置 _loginError
+          _isLoading = false;
+        });
       }
     } catch (e) {
-      print('Error during login: $e'); // 打印详细错误信息
-      _showErrorSnackBar('登录失败，请重试。');
+      print('Error during login: $e');
+      // 根据不同的错误类型设置 _loginError
+      setState(() {
+         _isLoading = false;
+        if (e is AuthException) {
+          if (e.message.contains('Invalid login credentials')) {
+            _loginError = '邮箱或密码不正确，请检查后重试。';
+          } else if (e.message.contains('Email not confirmed')) { //示例：未验证邮箱
+            _loginError = '您的邮箱尚未验证，请检查您的邮箱并点击验证链接。';
+          }
+           else {
+              _loginError = '登录失败：${e.message}'; // 显示 Supabase 的错误消息
+          }
+        } else {
+            _loginError = '登录时发生未知错误，请稍后重试。';
+        }
+
+      });
     } finally {
-      setState(() => _isLoading = false);
+        if(mounted){ //防止pop之后继续setState
+             setState(() => _isLoading = false);
+        }
     }
   }
 
-  // 从数据库获取用户的其他信息
-  Future<Map<String, dynamic>?> _fetchUserData(String userId) async {
+    Future<Map<String, dynamic>?> _fetchUserData(String userId) async {
     try {
       final response = await Supabase.instance.client
           .from('students')
@@ -350,6 +395,14 @@ class _LoginScreenState extends State<LoginScreen> {
                       },
                     ),
                     const SizedBox(height: 8),
+                     if (_loginError != null) ...[ // 显示登录错误
+                      Text(
+                        _loginError!,
+                        style: const TextStyle(color: Colors.red),
+                        textAlign: TextAlign.center,
+                      ),
+                      const SizedBox(height: 8),
+                    ],
                     Row(
                       children: [
                         Checkbox(
@@ -387,7 +440,9 @@ class _LoginScreenState extends State<LoginScreen> {
                     ),
                     const SizedBox(height: 16),
                     ElevatedButton(
-                      onPressed: _isLoading ? null : _handleLogin,
+                      onPressed: _isLoading
+                          ? null
+                          : _handleLogin, // 点击登录按钮，显示验证码弹窗
                       style: ElevatedButton.styleFrom(
                         backgroundColor: Colors.blue,
                         padding: const EdgeInsets.symmetric(vertical: 14),
