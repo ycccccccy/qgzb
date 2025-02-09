@@ -2,10 +2,11 @@ import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:flutter/services.dart';
 import 'school_data.dart';
-import 'login_screen.dart'; // 确保引入 LoginScreen
+import 'login_screen.dart';
+import 'simple_captcha.dart';
 
 class RegisterScreen extends StatefulWidget {
-  const RegisterScreen({Key? key});
+  const RegisterScreen({Key? key}) : super(key: key);
 
   @override
   _RegisterScreenState createState() => _RegisterScreenState();
@@ -17,15 +18,14 @@ class _RegisterScreenState extends State<RegisterScreen> {
   final TextEditingController _studentIdController = TextEditingController();
   final TextEditingController _nameController = TextEditingController();
   final TextEditingController _passwordController = TextEditingController();
-  final TextEditingController _verificationCodeController = TextEditingController();
   bool _passwordVisible = false;
   bool _isLoading = false;
-  bool _isVerificationComplete = false; // 标记验证是否完成
   String? _selectedGrade;
   int? _selectedClass;
   String? _selectedClassName;
   String? _selectedDistrict;
   String? _selectedSchool;
+  String? _captchaError;
 
   @override
   void dispose() {
@@ -33,10 +33,10 @@ class _RegisterScreenState extends State<RegisterScreen> {
     _studentIdController.dispose();
     _nameController.dispose();
     _passwordController.dispose();
-    _verificationCodeController.dispose();
     super.dispose();
   }
 
+  // 根据年级和班级更新班级名称
   void _updateClassValue() {
     if (_selectedGrade != null && _selectedClass != null) {
       setState(() {
@@ -49,77 +49,224 @@ class _RegisterScreenState extends State<RegisterScreen> {
     }
   }
 
+  // 发送邮箱验证码
+  Future<void> _sendVerificationCode(String email) async {
+    try {
+      await Supabase.instance.client.auth.signInWithOtp(email: email);
+      if (mounted) _showSuccessSnackBar('验证码已发送，请查收');
+    } catch (e) {
+      if (mounted) _showErrorSnackBar('发送验证码失败：$e');
+    }
+  }
+
+  // 处理注册逻辑
   Future<void> _handleRegister() async {
     if (!_formKey.currentState!.validate()) {
       return;
     }
-    if (!_isVerificationComplete) {
-      _showErrorSnackBar('请先完成邮箱验证');
+
+    setState(() => _isLoading = true);
+
+    final email = _emailController.text.trim();
+    final studentId = _studentIdController.text.trim();
+    final name = _nameController.text.trim();
+    final school = _selectedSchool!;
+    final className = _selectedClassName!;
+
+    // 检查是否已存在同名、同校、同班的用户
+    try {
+      final duplicateCheck = await Supabase.instance.client
+          .from('public_students')
+          .select('name') // Select a non-null column
+          .eq('name', name)
+          .eq('school', school)
+          .eq('class_name', className)
+          .limit(1);
+
+      if (duplicateCheck.isNotEmpty) {
+        if (mounted) {
+          _showErrorSnackBar('已存在相同用户，请勿重复注册');
+          setState(() => _isLoading = false);
+        }
+        return;
+      }
+    } catch (e) {
+      if (mounted) {
+        _showErrorSnackBar('查询出错：$e');
+        setState(() => _isLoading = false);
+      }
       return;
     }
-    setState(() => _isLoading = true);
-    try {
-      final email = _emailController.text.trim();
-      final studentId = _studentIdController.text.trim();
-      final name = _nameController.text.trim();
-      final password = _passwordController.text;
-      final school = _selectedSchool!;
-      final className = _selectedClassName!;
 
-      // 1. 使用 Supabase Auth 创建用户
-      final AuthResponse res = await Supabase.instance.client.auth.signUp(
-        email: email, // 使用用户提供的邮件地址
-        password: password,
-        data: {
-          'name': name,
-          'student_id': studentId,
-          'class_name': className,
-          'school': school,
-        },
-      );
+    // 显示人机验证对话框
+    showDialog(
+      context: context,
+      barrierDismissible: false, // Prevent dismissing by tapping outside
+      builder: (BuildContext context) {
+        return AlertDialog(
+          title: const Text('你真的是人类吗？'),
+          content: SimpleCaptcha(
+            isDialog: true,
+            errorMessage: _captchaError,
+            onCompleted: (captcha) async {
+              // 人机验证通过
+              setState(() {
+                _captchaError = null; // Clear any previous error
+              });
 
-      // 2. 注册成功后，将用户信息添加到 "students" 表中
-      if (res.user != null) {
-       if (res.user!.emailConfirmedAt == null) {
-        // 邮箱未验证，删除用户并提示
-        await Supabase.instance.client.auth.admin.deleteUser(res.user!.id);
-          _showErrorSnackBar('请先验证邮箱，然后重新注册');
-          return;
-        }
-        await _createStudentProfile(
-          userId: res.user!.id,
-          studentId: studentId,
-          name: name,
-          className: className,
-          school: school,
+              Navigator.of(context).pop(); // Close the captcha dialog
+
+              _sendVerificationCode(email); // Send verification code
+
+              if (mounted) {
+                _showEmailVerificationDialog(
+                    context, email); // Show email verification dialog
+              }
+            },
+          ),
+          actions: <Widget>[
+            TextButton(
+              child: const Text('取消'),
+              onPressed: () {
+                Navigator.of(context).pop(); // Close the dialog
+                if (mounted) setState(() => _isLoading = false);
+              },
+            ),
+          ],
         );
+      },
+    );
+  }
 
-        _showSuccessSnackBar('注册成功，请登录');
-        Navigator.pushReplacement( // 使用 pushReplacement
-          context,
-          MaterialPageRoute(builder: (context) => const LoginScreen()), // 导航到 LoginScreen
+  // 显示邮箱验证对话框
+  void _showEmailVerificationDialog(BuildContext context, String email) {
+    final TextEditingController verificationCodeController =
+        TextEditingController();
+    bool shouldNavigate = false;
+
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (BuildContext context) {
+        return AlertDialog(
+          title: const Text('邮箱验证'),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Text('请输入发送到你邮箱的验证码'),
+              const SizedBox(height: 16),
+              TextField(
+                controller: verificationCodeController,
+                keyboardType: TextInputType.number,
+                decoration: const InputDecoration(
+                  labelText: '验证码',
+                  hintText: '请输入验证码',
+                  border: OutlineInputBorder(),
+                ),
+              ),
+            ],
+          ),
+          actions: <Widget>[
+            TextButton(
+              child: const Text('取消'),
+              onPressed: () {
+                Navigator.of(context).pop();
+                if (mounted) setState(() => _isLoading = false);
+              },
+            ),
+            TextButton(
+              child: const Text('验证'),
+              onPressed: () async {
+                final code = verificationCodeController.text.trim();
+                if (code.isEmpty) {
+                  if (mounted) _showErrorSnackBar('请输入验证码');
+                  return;
+                }
+
+                try {
+                  final res = await Supabase.instance.client.auth
+                      .verifyOTP(
+                        email: email,
+                        token: code,
+                        type: OtpType.email,
+                      )
+                      .timeout(Duration(seconds: 30));
+
+                  if (res.user != null) {
+                    Navigator.of(context).pop();
+
+                    final studentId = _studentIdController.text.trim();
+                    final name = _nameController.text.trim();
+                    final password = _passwordController.text;
+                    final school = _selectedSchool!;
+                    final className = _selectedClassName!;
+
+                    final AuthResponse res2 =
+                        await Supabase.instance.client.auth.signUp(
+                      email: email,
+                      password: password,
+                      data: {
+                        'name': name,
+                        'student_id': studentId,
+                        'class_name': className,
+                        'school': school,
+                      },
+                    ).timeout(Duration(seconds: 30));
+
+                    if (res2.user != null) {
+                      await _createStudentProfile(
+                        userId: res2.user!.id,
+                        studentId: studentId,
+                        name: name,
+                        className: className,
+                        school: school,
+                      );
+
+                      // 调试输出
+                      shouldNavigate = true;
+
+                      if (mounted) {
+                        _showSuccessSnackBar('注册成功！请前往登录页面以登录');
+                      }
+                    } else {
+                      if (mounted) _showErrorSnackBar('注册失败，请重试');
+                    }
+                  } else {
+                    if (mounted) _showErrorSnackBar('验证失败，请检查验证码');
+                  }
+                } catch (e) {
+                  if (mounted) {
+                    _showErrorSnackBar('注册失败：$e');
+                    setState(() => _isLoading = false);
+                  }
+                } finally {
+                  if (mounted) {
+                    setState(() => _isLoading = false);
+                  }
+                }
+              },
+            ),
+          ],
         );
-      } else {
-        _showErrorSnackBar('注册失败，请重试');
+      },
+    ).then((_) {
+      // 调试输出
+      // 检查 mounted 的 值
+      if (mounted) {
+        setState(() {});
       }
-    } on AuthException catch (error) {
-      // 处理 Supabase Auth 错误
-      _showErrorSnackBar('注册失败: ${error.message}');
-    } catch (e) {
-      String errorMessage = '注册失败，请重试';
-      if (e is PostgrestException) {
-        if (e.code == '23505') {
-          errorMessage = '该用户已注册';
-        } else {
-          errorMessage = '数据库错误，请稍后重试';
-        }
-      } else {
-        print('Error during registration: $e');
+      if (shouldNavigate && mounted) {
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          Navigator.pushReplacement(
+            context, // 明确使用 context
+            MaterialPageRoute(
+              builder: (context) => LoginScreen(
+              ),
+            ),
+          );
+        });
       }
-      _showErrorSnackBar(errorMessage);
-    } finally {
-      setState(() => _isLoading = false);
-    }
+    });
   }
 
   // 创建学生信息
@@ -131,79 +278,50 @@ class _RegisterScreenState extends State<RegisterScreen> {
     required String school,
   }) async {
     try {
-      await Supabase.instance.client.from('students').insert({
-        'auth_user_id': userId, //  使用 auth_user_id
+      final insertResult =
+          await Supabase.instance.client.from('students').insert({
+        'auth_user_id': null, // Set to null initially
         'student_id': studentId,
         'name': name,
         'class_name': className,
         'school': school,
-      });
-    } catch (e) {
-      print('Error creating student profile: $e');
-      throw e; //  重新抛出异常，以便在 _handleRegister 中处理
-    }
-  }
+      }).select('id');
 
-  void _showErrorSnackBar(String message) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(message),
-        backgroundColor: Colors.red,
-      ),
-    );
-  }
-
-  void _showSuccessSnackBar(String message) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(message),
-        backgroundColor: Colors.green,
-      ),
-    );
-  }
-
-  // 发送验证码
-  Future<void> _sendVerificationCode() async {
-    final email = _emailController.text.trim();
-    if (email.isEmpty) {
-      _showErrorSnackBar('请输入邮箱');
-      return;
-    }
-
-    try {
-      await Supabase.instance.client.auth.signInWithOtp(email: email);
-      _showSuccessSnackBar('验证码已发送，请查收');
-    } catch (e) {
-      _showErrorSnackBar('发送验证码失败：$e');
-    }
-  }
-
-  // 验证验证码
-  Future<void> _verifyVerificationCode() async {
-    final email = _emailController.text.trim();
-    final code = _verificationCodeController.text.trim();
-    if (email.isEmpty || code.isEmpty) {
-      _showErrorSnackBar('请输入邮箱和验证码');
-      return;
-    }
-
-    try {
-      final res = await Supabase.instance.client.auth.verifyOTP(
-        email: email,
-        token: code,
-        type: OtpType.email,
-      );
-
-      if (res.user != null) {
-        setState(() {
-          _isVerificationComplete = true;
-        });
-        _showSuccessSnackBar('验证成功');
-      } else {
-        _showErrorSnackBar('验证失败，请检查验证码');
+      if (insertResult.isEmpty) {
+        throw Exception('Failed to insert student record and get ID.');
       }
+      final studentRecordId = insertResult[0]['id'];
+
+      // Update auth_user_id immediately
+      await Supabase.instance.client.from('students').update({
+        'auth_user_id': userId,
+      }).eq('id', studentRecordId);
     } catch (e) {
-      _showErrorSnackBar('验证失败：$e');
+      throw e;
+    }
+  }
+
+  // 显示错误消息
+  void _showErrorSnackBar(String message) {
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(message),
+          backgroundColor: Colors.red,
+        ),
+      );
+    }
+  }
+
+  // 显示成功消息
+  void _showSuccessSnackBar(String message) {
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(message),
+          backgroundColor: Colors.green,
+        ),
+      );
     }
   }
 
@@ -221,7 +339,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
             elevation: 4,
             color: Colors.grey[50],
             shape:
-            RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
             child: Padding(
               padding: EdgeInsets.all(isMobile ? 20 : 40),
               child: Form(
@@ -239,55 +357,21 @@ class _RegisterScreenState extends State<RegisterScreen> {
                       textAlign: TextAlign.center,
                     ),
                     const SizedBox(height: 20),
-                    Row(
-                      children: [
-                        Expanded(
-                          child: buildTextFormField(
-                            controller: _emailController,
-                            labelText: '邮箱',
-                            hintText: '请输入你的邮箱',
-                            prefixIcon: Icons.email,
-                            keyboardType: TextInputType.emailAddress,
-                            validator: (value) {
-                              if (value == null || value.isEmpty) {
-                                return '邮箱不能为空';
-                              }
-                              if (!value.contains('@')) {
-                                return '邮箱格式不正确';
-                              }
-                              return null;
-                            },
-                          ),
-                        ),
-                        const SizedBox(width: 8),
-                        ElevatedButton(
-                          onPressed: _sendVerificationCode,
-                          child: const Text('发送验证码'),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 16),
-                    Row(
-                      children: [
-                        Expanded(
-                          child: buildTextFormField(
-                            controller: _verificationCodeController,
-                            labelText: '验证码',
-                            hintText: '请输入验证码',
-                            prefixIcon: Icons.code,
-                            keyboardType: TextInputType.number,
-                          ),
-                        ),
-                        const SizedBox(width: 8),
-                        ElevatedButton(
-                          onPressed: _verifyVerificationCode,
-                          child: const Text('验证'),
-                        ),
-                        if (_isVerificationComplete) ...[
-                          const SizedBox(width: 8),
-                          const Text('验证完毕', style: TextStyle(color: Colors.green)),
-                        ],
-                      ],
+                    buildTextFormField(
+                      controller: _emailController,
+                      labelText: '邮箱',
+                      hintText: '请输入你的邮箱',
+                      prefixIcon: Icons.email,
+                      keyboardType: TextInputType.emailAddress,
+                      validator: (value) {
+                        if (value == null || value.isEmpty) {
+                          return '邮箱不能为空';
+                        }
+                        if (!value.contains('@')) {
+                          return '邮箱格式不正确';
+                        }
+                        return null;
+                      },
                     ),
                     const SizedBox(height: 16),
                     buildTextFormField(
@@ -510,14 +594,16 @@ class _RegisterScreenState extends State<RegisterScreen> {
                           ? const CircularProgressIndicator(color: Colors.white)
                           : const Text('注册',
                           style:
-                          TextStyle(fontSize: 18, color: Colors.white)),
+                              TextStyle(fontSize: 18, color: Colors.white)),
                     ),
                     const SizedBox(height: 10),
                     TextButton(
                       onPressed: () {
-                        Navigator.push(context,
-                        MaterialPageRoute(
-                          builder: (context) => const LoginScreen()),);
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                              builder: (context) => const LoginScreen()),
+                        );
                       },
                       child: const Text('已有账号？去登录。',
                           style: TextStyle(color: Colors.blueGrey)),
@@ -564,4 +650,3 @@ class _RegisterScreenState extends State<RegisterScreen> {
     );
   }
 }
-
