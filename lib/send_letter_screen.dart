@@ -14,7 +14,8 @@ class SendLetterScreen extends StatefulWidget {
 }
 
 class _SendLetterScreenState extends State<SendLetterScreen>
-    with SingleTickerProviderStateMixin { // 添加 SingleTickerProviderStateMixin
+    with SingleTickerProviderStateMixin {
+  // 添加 SingleTickerProviderStateMixin
 
   final _formKey = GlobalKey<FormState>();
   final TextEditingController _receiverNameController = TextEditingController();
@@ -58,13 +59,12 @@ class _SendLetterScreenState extends State<SendLetterScreen>
       curve: Curves.easeInOut,
     );
 
-      // 监听搜索框变化, 如果从有内容到无内容, 则收起列表
+    // 监听搜索框变化, 如果从有内容到无内容, 则收起列表
     _receiverNameController.addListener(() {
-        if(_receiverNameController.text.isEmpty){
-            _animationController.reverse(); // 收起
-        }
+      if (_receiverNameController.text.isEmpty) {
+        _animationController.reverse(); // 收起
+      }
     });
-
   }
 
   @override
@@ -77,7 +77,7 @@ class _SendLetterScreenState extends State<SendLetterScreen>
     super.dispose();
   }
 
-    void _updateClassValue() {
+  void _updateClassValue() {
     setState(() {
       if (_selectedGrade != null && _selectedClassNumber != null) {
         _selectedClassName = '$_selectedGrade$_selectedClassNumber';
@@ -103,6 +103,7 @@ class _SendLetterScreenState extends State<SendLetterScreen>
         }
       } catch (e) {
         // 可以选择在这里处理错误，例如显示一个提示
+        print("Error loading school and name: $e"); // 打印错误信息
       }
     }
   }
@@ -116,7 +117,7 @@ class _SendLetterScreenState extends State<SendLetterScreen>
     await _sendLetter();
   }
 
-   Future<void> _sendLetter() async {
+  Future<void> _sendLetter() async {
     if (!_formKey.currentState!.validate()) {
       return;
     }
@@ -153,11 +154,13 @@ class _SendLetterScreenState extends State<SendLetterScreen>
 
       // 使用 _selectedSchool，如果选择了搜索结果，它会被赋值
       final targetSchool = _selectedSchool;
-    final String? receiverClass = _isSearchResultSelected ? _selectedSearchResult!['class_name'] : _selectedClassName;
+      final String? receiverClass = _isSearchResultSelected
+          ? _selectedSearchResult!['class_name']
+          : _selectedClassName;
 
       final letter = await Supabase.instance.client.from('letters').insert({
         'sender_id': currentUserId,
-        'sender_name': _isAnonymous? "匿名" : senderName, // 根据 _isAnonymous 决定是否匿名
+        'sender_name': _isAnonymous ? "匿名" : senderName, // 根据 _isAnonymous 决定是否匿名
         'receiver_name': receiverName,
         'content': content,
         'send_time': DateTime.now().toIso8601String(),
@@ -190,21 +193,22 @@ class _SendLetterScreenState extends State<SendLetterScreen>
       });
 
       final name = _receiverNameController.text.trim();
-        //如果搜索框为空, 则收起列表, 并清空之前的结果
-        if (name.isEmpty) {
-          _animationController.reverse(); // 收起列表
-          setState(() {
-            _searchResults = [];
-            _showNoResultTip = false;
-          });
-          return;
-        }
+      //如果搜索框为空, 则收起列表, 并清空之前的结果
+      if (name.isEmpty) {
+        _animationController.reverse(); // 收起列表
+        setState(() {
+          _searchResults = [];
+          _showNoResultTip = false;
+        });
+        return;
+      }
 
+      // *** 修改：从 public_students 视图查询 ***
       final queryBuilder = Supabase.instance.client
-          .from('students')
+          .from('public_students') // 从视图查询
           .select('''
-            id,
             name,
+            student_id,
             class_name,
             school
            ''')
@@ -220,35 +224,37 @@ class _SendLetterScreenState extends State<SendLetterScreen>
         _searchResults = response.map((user) {
           return {
             ...user,
+            // 使用 student_id 作为 id
+            'id': user['student_id'],  // 确保这里使用的是 student_id
             'highlightedName': _highlightMatches(user['name'], highlightQuery),
             'highlightedSubtitle': _highlightMatches(
                 '${user['school']} ${user['class_name']} ', highlightQuery),
           };
         }).toList();
         _showNoResultTip = _searchResults.isEmpty;
-          if (_searchResults.isNotEmpty) {
-            _animationController.forward(); // 展开列表
-          } else {
-             _animationController.reverse(); //收起列表
-          }
+        if (_searchResults.isNotEmpty) {
+          _animationController.forward(); // 展开列表
+        } else {
+          _animationController.reverse(); //收起列表
+        }
       });
     } on PostgrestException catch (e) {
       _handleSearchError(e);
       setState(() {
         _showNoResultTip = true;
-         _animationController.reverse(); // 收起列表
+        _animationController.reverse(); // 收起列表
       });
     } on TimeoutException catch (e) {
       _handleSearchError('查询超时，请重试');
       setState(() {
         _showNoResultTip = true;
-          _animationController.reverse(); // 收起列表
+        _animationController.reverse(); // 收起列表
       });
     } catch (e) {
       _handleSearchError(e);
       setState(() {
         _showNoResultTip = true;
-          _animationController.reverse(); // 收起列表
+        _animationController.reverse(); // 收起列表
       });
     } finally {
       setState(() {
@@ -286,7 +292,7 @@ class _SendLetterScreenState extends State<SendLetterScreen>
   }
 
   TextSpan _highlightMatches(String text, String query) {
-     final spans = <TextSpan>[];
+    final spans = <TextSpan>[];
     int lastIndex = 0;
 
     // 如果查询为空，直接返回原始文本
@@ -433,7 +439,7 @@ class _SendLetterScreenState extends State<SendLetterScreen>
   }
 
   @override
-    @override
+  @override
   Widget build(BuildContext context) {
     final isMobile = MediaQuery.of(context).size.width < 600;
     final theme = Theme.of(context);
@@ -619,7 +625,7 @@ class _SendLetterScreenState extends State<SendLetterScreen>
                       ),
                     ),
 
-                    // 搜索结果确认信息
+                  // 搜索结果确认信息
                   AnimatedOpacity(
                     duration: const Duration(milliseconds: 300),
                     opacity: _isSearchResultSelected ? 1.0 : 0.0,
@@ -696,7 +702,7 @@ class _SendLetterScreenState extends State<SendLetterScreen>
                         ),
                       ),
                     ),
-                    // 如果没有选择搜索结果，则显示区、学校、班级的选择
+                  // 如果没有选择搜索结果，则显示区、学校、班级的选择
                   if (!_isSearchResultSelected)
                     Column(
                       children: [
@@ -957,7 +963,7 @@ class _SendLetterScreenState extends State<SendLetterScreen>
     );
   }
 
-    InputDecoration _inputDecoration({
+  InputDecoration _inputDecoration({
     required String labelText,
     String? hintText,
   }) {
@@ -1021,16 +1027,17 @@ class _SendLetterScreenState extends State<SendLetterScreen>
       items: items,
       onChanged: onChanged,
       validator: validator,
-            borderRadius:
-          BorderRadius.circular(12), // 添加圆角, 让所有表单元素风格统一.  borderRadius 可以放在 _inputDecoration 里
+      borderRadius:
+          BorderRadius.circular(12), // 添加圆角    
     );
   }
 
+  // *** 修改：从 public_students 视图查询 ***
   Future<Map<String, dynamic>?> _fetchStudentData(
       String studentId, String name) async {
     final query = Supabase.instance.client
-        .from('students')
-        .select()
+        .from('public_students') // 从视图查询
+        .select('name, school, student_id') // 只选择需要的列
         .eq('student_id', studentId)
         .eq('name', name);
     final response = await query;
