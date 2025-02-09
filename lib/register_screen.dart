@@ -14,12 +14,13 @@ class RegisterScreen extends StatefulWidget {
 
 class _RegisterScreenState extends State<RegisterScreen> {
   final _formKey = GlobalKey<FormState>();
-  final TextEditingController _emailController = TextEditingController();
-  final TextEditingController _studentIdController = TextEditingController();
+  final TextEditingController _emailController = TextEditingController(); 
+  final TextEditingController _studentIdController = TextEditingController(); 
   final TextEditingController _nameController = TextEditingController();
   final TextEditingController _passwordController = TextEditingController();
   bool _passwordVisible = false;
   bool _isLoading = false;
+  bool _canRegister = true; // 控制是否可以注册
   String? _selectedGrade;
   int? _selectedClass;
   String? _selectedClassName;
@@ -36,11 +37,10 @@ class _RegisterScreenState extends State<RegisterScreen> {
     super.dispose();
   }
 
-  // 根据年级和班级更新班级名称
   void _updateClassValue() {
     if (_selectedGrade != null && _selectedClass != null) {
       setState(() {
-        _selectedClassName = '$_selectedGrade$_selectedClass班';
+        _selectedClassName = '$_selectedGrade${_selectedClass}班';
       });
     } else {
       setState(() {
@@ -48,36 +48,28 @@ class _RegisterScreenState extends State<RegisterScreen> {
       });
     }
   }
-
-  // 发送邮箱验证码
-  Future<void> _sendVerificationCode(String email) async {
-    try {
-      await Supabase.instance.client.auth.signInWithOtp(email: email);
-      if (mounted) _showSuccessSnackBar('验证码已发送，请查收');
-    } catch (e) {
-      if (mounted) _showErrorSnackBar('发送验证码失败：$e');
-    }
-  }
-
-  // 处理注册逻辑
   Future<void> _handleRegister() async {
-    if (!_formKey.currentState!.validate()) {
+    if (!_formKey.currentState!.validate() || !_canRegister) {
       return;
     }
 
-    setState(() => _isLoading = true);
+    setState(() {
+      _isLoading = true;
+      _canRegister = false; // 禁用注册按钮
+    });
 
     final email = _emailController.text.trim();
     final studentId = _studentIdController.text.trim();
     final name = _nameController.text.trim();
     final school = _selectedSchool!;
     final className = _selectedClassName!;
+    final password = _passwordController.text;
 
     // 检查是否已存在同名、同校、同班的用户
     try {
       final duplicateCheck = await Supabase.instance.client
-          .from('public_students')
-          .select('name') // Select a non-null column
+          .from('students')
+          .select('name')
           .eq('name', name)
           .eq('school', school)
           .eq('class_name', className)
@@ -86,41 +78,55 @@ class _RegisterScreenState extends State<RegisterScreen> {
       if (duplicateCheck.isNotEmpty) {
         if (mounted) {
           _showErrorSnackBar('已存在相同用户，请勿重复注册');
-          setState(() => _isLoading = false);
         }
+        _resetRegisterState(); // 重置注册状态
         return;
       }
     } catch (e) {
       if (mounted) {
         _showErrorSnackBar('查询出错：$e');
-        setState(() => _isLoading = false);
       }
+      _resetRegisterState();
       return;
     }
 
+    // 获取 NavigatorState
+    final navigator = Navigator.of(context);
+
     // 显示人机验证对话框
     showDialog(
-      context: context,
-      barrierDismissible: false, // Prevent dismissing by tapping outside
-      builder: (BuildContext context) {
+      context: context, // 使用 context
+      barrierDismissible: false,
+      builder: (BuildContext dialogContext) { // 使用 dialogContext
         return AlertDialog(
-          title: const Text('你真的是人类吗？'),
+          title: const Text('人机验证'),
           content: SimpleCaptcha(
             isDialog: true,
             errorMessage: _captchaError,
             onCompleted: (captcha) async {
-              // 人机验证通过
+              if (captcha.isEmpty) {
+                setState(() {
+                  _captchaError = "验证码错误";
+                });
+                return;
+              }
+
+              navigator.pop(); // 使用 navigator
               setState(() {
-                _captchaError = null; // Clear any previous error
+                _captchaError = null;
               });
 
-              Navigator.of(context).pop(); // Close the captcha dialog
-
-              _sendVerificationCode(email); // Send verification code
-
+              // 人机验证通过，立即显示邮箱验证对话框
               if (mounted) {
                 _showEmailVerificationDialog(
-                    context, email); // Show email verification dialog
+                  context, // 使用 context
+                  email,
+                  studentId,
+                  name,
+                  school,
+                  className,
+                  password,
+                );
               }
             },
           ),
@@ -128,8 +134,8 @@ class _RegisterScreenState extends State<RegisterScreen> {
             TextButton(
               child: const Text('取消'),
               onPressed: () {
-                Navigator.of(context).pop(); // Close the dialog
-                if (mounted) setState(() => _isLoading = false);
+                navigator.pop(); // 使用 navigator
+                _resetRegisterState();
               },
             ),
           ],
@@ -138,16 +144,47 @@ class _RegisterScreenState extends State<RegisterScreen> {
     );
   }
 
+// 重置注册状态 (允许再次注册)
+  void _resetRegisterState() {
+    if (mounted) {
+      setState(() {
+        _isLoading = false;
+        _canRegister = true; // 启用注册按钮
+      });
+    }
+  }
+
+  // 发送邮箱验证码
+  Future<void> _sendVerificationCode(String email) async {
+    try {
+      await Supabase.instance.client.auth.signInWithOtp(email: email);
+      // 邮件发送成功，不需要在这里显示提示，因为对话框已经显示
+    } catch (e) {
+      if (mounted) _showErrorSnackBar('发送验证码失败：$e');
+    }
+  }
+
   // 显示邮箱验证对话框
-  void _showEmailVerificationDialog(BuildContext context, String email) {
+  void _showEmailVerificationDialog(
+    BuildContext context,
+    String email,
+    String studentId,
+    String name,
+    String school,
+    String className,
+    String password,
+  ) {
     final TextEditingController verificationCodeController =
         TextEditingController();
     bool shouldNavigate = false;
 
+    // 立即发送验证码
+    _sendVerificationCode(email);
+
     showDialog(
       context: context,
       barrierDismissible: false,
-      builder: (BuildContext context) {
+      builder: (BuildContext dialogContext) {
         return AlertDialog(
           title: const Text('邮箱验证'),
           content: Column(
@@ -170,8 +207,8 @@ class _RegisterScreenState extends State<RegisterScreen> {
             TextButton(
               child: const Text('取消'),
               onPressed: () {
-                Navigator.of(context).pop();
-                if (mounted) setState(() => _isLoading = false);
+                Navigator.of(dialogContext).pop();
+                _resetRegisterState();
               },
             ),
             TextButton(
@@ -184,23 +221,15 @@ class _RegisterScreenState extends State<RegisterScreen> {
                 }
 
                 try {
-                  final res = await Supabase.instance.client.auth
-                      .verifyOTP(
-                        email: email,
-                        token: code,
-                        type: OtpType.email,
-                      )
-                      .timeout(Duration(seconds: 30));
+                  // 使用 verifyOTP 验证邮箱验证码
+                  final res = await Supabase.instance.client.auth.verifyOTP(
+                    email: email,
+                    token: code,
+                    type: OtpType.email,
+                  );
 
                   if (res.user != null) {
-                    Navigator.of(context).pop();
-
-                    final studentId = _studentIdController.text.trim();
-                    final name = _nameController.text.trim();
-                    final password = _passwordController.text;
-                    final school = _selectedSchool!;
-                    final className = _selectedClassName!;
-
+                    // 验证码验证成功，注册用户
                     final AuthResponse res2 =
                         await Supabase.instance.client.auth.signUp(
                       email: email,
@@ -211,38 +240,35 @@ class _RegisterScreenState extends State<RegisterScreen> {
                         'class_name': className,
                         'school': school,
                       },
-                    ).timeout(Duration(seconds: 30));
+                    );
 
-                    if (res2.user != null) {
-                      await _createStudentProfile(
-                        userId: res2.user!.id,
-                        studentId: studentId,
-                        name: name,
-                        className: className,
-                        school: school,
-                      );
-
-                      // 调试输出
-                      shouldNavigate = true;
-
+                    if (res2.user == null) {
                       if (mounted) {
-                        _showSuccessSnackBar('注册成功！请前往登录页面以登录');
+                        _showErrorSnackBar('注册失败，请重试');
                       }
-                    } else {
-                      if (mounted) _showErrorSnackBar('注册失败，请重试');
+                      _resetRegisterState();
+                      return;
                     }
+
+                    // 插入 students 表
+                    await _createStudentProfile(
+                      userId: res2.user!.id,
+                      studentId: studentId,
+                      name: name,
+                      className: className,
+                      school: school,
+                    );
+
+                    shouldNavigate = true;
+                    if (mounted) _showSuccessSnackBar('注册成功！');
                   } else {
-                    if (mounted) _showErrorSnackBar('验证失败，请检查验证码');
+                    if (mounted) _showErrorSnackBar('验证码错误');
                   }
                 } catch (e) {
-                  if (mounted) {
-                    _showErrorSnackBar('注册失败：$e');
-                    setState(() => _isLoading = false);
-                  }
+                  if (mounted) _showErrorSnackBar('验证失败：$e');
                 } finally {
-                  if (mounted) {
-                    setState(() => _isLoading = false);
-                  }
+                  Navigator.of(dialogContext).pop(); // 确保对话框关闭
+                  _resetRegisterState(); // 重置注册状态
                 }
               },
             ),
@@ -250,26 +276,14 @@ class _RegisterScreenState extends State<RegisterScreen> {
         );
       },
     ).then((_) {
-      // 调试输出
-      // 检查 mounted 的 值
-      if (mounted) {
-        setState(() {});
-      }
-      if (shouldNavigate && mounted) {
-        WidgetsBinding.instance.addPostFrameCallback((_) {
-          Navigator.pushReplacement(
-            context, // 明确使用 context
-            MaterialPageRoute(
-              builder: (context) => LoginScreen(
-              ),
-            ),
-          );
-        });
+      if (shouldNavigate) {
+        Navigator.of(context).pushReplacement(
+          MaterialPageRoute(builder: (context) => LoginScreen()),
+        );
       }
     });
   }
 
-  // 创建学生信息
   Future<void> _createStudentProfile({
     required String userId,
     required String studentId,
@@ -278,30 +292,18 @@ class _RegisterScreenState extends State<RegisterScreen> {
     required String school,
   }) async {
     try {
-      final insertResult =
-          await Supabase.instance.client.from('students').insert({
-        'auth_user_id': null, // Set to null initially
+      await Supabase.instance.client.from('students').insert({
+        'auth_user_id': userId,
         'student_id': studentId,
         'name': name,
         'class_name': className,
         'school': school,
-      }).select('id');
-
-      if (insertResult.isEmpty) {
-        throw Exception('Failed to insert student record and get ID.');
-      }
-      final studentRecordId = insertResult[0]['id'];
-
-      // Update auth_user_id immediately
-      await Supabase.instance.client.from('students').update({
-        'auth_user_id': userId,
-      }).eq('id', studentRecordId);
+      });
     } catch (e) {
-      throw e;
+      rethrow;
     }
   }
 
-  // 显示错误消息
   void _showErrorSnackBar(String message) {
     if (mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -313,7 +315,6 @@ class _RegisterScreenState extends State<RegisterScreen> {
     }
   }
 
-  // 显示成功消息
   void _showSuccessSnackBar(String message) {
     if (mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -323,6 +324,38 @@ class _RegisterScreenState extends State<RegisterScreen> {
         ),
       );
     }
+  }
+
+    TextFormField buildTextFormField({
+    required TextEditingController controller,
+    required String labelText,
+    required String hintText,
+    IconData? prefixIcon,
+    TextInputType? keyboardType,
+    List<TextInputFormatter>? inputFormatters,
+    bool obscureText = false,
+    IconButton? suffixIcon,
+    String? Function(String?)? validator,
+  }) {
+    return TextFormField(
+      controller: controller,
+      obscureText: obscureText,
+      keyboardType: keyboardType,
+      inputFormatters: inputFormatters,
+      decoration: InputDecoration(
+        labelText: labelText,
+        hintText: hintText,
+        prefixIcon: prefixIcon != null ? Icon(prefixIcon) : null,
+        suffixIcon: suffixIcon,
+        filled: true,
+        fillColor: Colors.white,
+        border: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(8),
+          borderSide: BorderSide.none,
+        ),
+      ),
+      validator: validator,
+    );
   }
 
   @override
@@ -367,7 +400,9 @@ class _RegisterScreenState extends State<RegisterScreen> {
                         if (value == null || value.isEmpty) {
                           return '邮箱不能为空';
                         }
-                        if (!value.contains('@')) {
+                        // 更严格的邮箱格式验证
+                        if (!RegExp(r'^[\w-\.]+@([\w-]+\.)+[\w-]{2,4}$')
+                            .hasMatch(value)) {
                           return '邮箱格式不正确';
                         }
                         return null;
@@ -387,6 +422,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
                         if (value == null || value.isEmpty) {
                           return '学号不能为空';
                         }
+                        // 可以添加更多学号验证规则
                         return null;
                       },
                     ),
@@ -400,6 +436,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
                         if (value == null || value.isEmpty) {
                           return '姓名不能为空';
                         }
+                        // 可以添加更多姓名验证规则
                         return null;
                       },
                     ),
@@ -418,9 +455,9 @@ class _RegisterScreenState extends State<RegisterScreen> {
                       value: _selectedDistrict,
                       items: schoolList.keys
                           .map((district) => DropdownMenuItem(
-                        value: district,
-                        child: Text(district),
-                      ))
+                                value: district,
+                                child: Text(district),
+                              ))
                           .toList(),
                       onChanged: (value) {
                         setState(() {
@@ -453,11 +490,11 @@ class _RegisterScreenState extends State<RegisterScreen> {
                       value: _selectedSchool,
                       items: _selectedDistrict != null
                           ? schoolList[_selectedDistrict]
-                          ?.map((school) => DropdownMenuItem(
-                        value: school,
-                        child: Text(school),
-                      ))
-                          .toList()
+                              ?.map((school) => DropdownMenuItem(
+                                    value: school,
+                                    child: Text(school),
+                                  ))
+                              .toList()
                           : [],
                       onChanged: (value) {
                         setState(() {
@@ -499,9 +536,9 @@ class _RegisterScreenState extends State<RegisterScreen> {
                               '高三',
                             ]
                                 .map((grade) => DropdownMenuItem(
-                              value: grade,
-                              child: Text(grade),
-                            ))
+                                      value: grade,
+                                      child: Text(grade),
+                                    ))
                                 .toList(),
                             onChanged: (value) {
                               setState(() {
@@ -534,9 +571,9 @@ class _RegisterScreenState extends State<RegisterScreen> {
                             value: _selectedClass,
                             items: List.generate(50, (index) => index + 1)
                                 .map((classNum) => DropdownMenuItem(
-                              value: classNum,
-                              child: Text('$classNum班'),
-                            ))
+                                      value: classNum,
+                                      child: Text('$classNum班'),
+                                    ))
                                 .toList(),
                             onChanged: (value) {
                               setState(() {
@@ -578,6 +615,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
                         if (value.length < 6) {
                           return '密码长度至少为6位';
                         }
+                        // 可以添加更多密码验证规则 (例如，强度验证)
                         return null;
                       },
                     ),
@@ -593,8 +631,8 @@ class _RegisterScreenState extends State<RegisterScreen> {
                       child: _isLoading
                           ? const CircularProgressIndicator(color: Colors.white)
                           : const Text('注册',
-                          style:
-                              TextStyle(fontSize: 18, color: Colors.white)),
+                              style: TextStyle(
+                                  fontSize: 18, color: Colors.white)),
                     ),
                     const SizedBox(height: 10),
                     TextButton(
@@ -615,38 +653,6 @@ class _RegisterScreenState extends State<RegisterScreen> {
           ),
         ),
       ),
-    );
-  }
-
-  TextFormField buildTextFormField({
-    required TextEditingController controller,
-    required String labelText,
-    required String hintText,
-    IconData? prefixIcon,
-    TextInputType? keyboardType,
-    List<TextInputFormatter>? inputFormatters,
-    bool obscureText = false,
-    IconButton? suffixIcon,
-    String? Function(String?)? validator,
-  }) {
-    return TextFormField(
-      controller: controller,
-      obscureText: obscureText,
-      keyboardType: keyboardType,
-      inputFormatters: inputFormatters,
-      decoration: InputDecoration(
-        labelText: labelText,
-        hintText: hintText,
-        prefixIcon: prefixIcon != null ? Icon(prefixIcon) : null,
-        suffixIcon: suffixIcon,
-        filled: true,
-        fillColor: Colors.white,
-        border: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(8),
-          borderSide: BorderSide.none,
-        ),
-      ),
-      validator: validator,
     );
   }
 }
