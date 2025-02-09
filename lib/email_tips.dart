@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:hyxj/register_screen.dart';
 import 'global_appbar.dart';
+import 'package:url_launcher/url_launcher.dart';
+import 'package:flutter/gestures.dart';
 
 const double _verticalSpacing = 20.0;
 const double _horizontalPadding = 24.0;
@@ -51,8 +53,10 @@ class EmailGuideScreen extends StatelessWidget {
                         context,
                         stepNumber: 2,
                         title: "登录QQ邮箱",
-                        content: "1. 在手机或电脑浏览器访问 mail.qq.com\n"
-                            "2. 选择『QQ登录』方式\n"
+                        content: "1. 在手机或电脑浏览器访问 ",
+                        link: "mail.qq.com",
+                        linkText: "mail.qq.com",
+                        contentAfterLink: "\n2. 选择『QQ登录』方式\n"
                             "3. 输入你的QQ号和密码\n"
                             "4. 登录成功后即可查看收件箱",
                       ),
@@ -60,11 +64,11 @@ class EmailGuideScreen extends StatelessWidget {
                       _buildStepCard(
                         context,
                         stepNumber: 3,
-                        title: "查看验证码",
+                        title: "验证邮箱",
                         content: "1. 完成注册后，请及时登录QQ邮箱\n"
                             "2. 在收件箱找到我们发送的验证邮件\n"
                             "3. 邮件内容中包含6位数字验证码\n"
-                            "4. 将验证码填写回注册页面即可完成验证",
+                            "4. 将验证码填写回注册页面点击验证，等待验证成功",
                       ),
                       const SizedBox(height: _verticalSpacing * 2),
                       _buildConfirmButton(context),
@@ -81,7 +85,7 @@ class EmailGuideScreen extends StatelessWidget {
   }
 
   Widget _buildStepCard(BuildContext context,
-      {required int stepNumber, required String title, required String content}) {
+      {required int stepNumber, required String title, required String content, String? link, String? linkText, String? contentAfterLink}) {
     return Card(
       elevation: 2.0,
       shape: RoundedRectangleBorder(
@@ -117,12 +121,46 @@ class EmailGuideScreen extends StatelessWidget {
                     ),
                   ),
                   const SizedBox(height: 8),
-                  Text(
-                    content,
-                    style: TextStyle(
-                      fontSize: 15,
-                      height: 1.5,
-                      color: _greyColor,
+                  RichText(
+                    text: TextSpan(
+                      children: [
+                        TextSpan(
+                          text: content,
+                          style: TextStyle(
+                            fontSize: 15,
+                            height: 1.5,
+                            color: _greyColor,
+                          ),
+                        ),
+                        if (link != null && linkText != null)
+                          TextSpan(
+                            text: linkText,
+                            style: TextStyle(
+                              fontSize: 15,
+                              height: 1.5,
+                              color: Colors.blue,
+                              decoration: TextDecoration.underline,
+                            ),
+                            recognizer: TapGestureRecognizer()
+                              ..onTap = () async {
+                                final url = Uri.parse('https://$link');
+                                if (await canLaunchUrl(url)) {
+                                  await launchUrl(url);
+                                } else {
+                                  throw 'Could not launch $link';
+                                }
+                              },
+                          ),
+                        if (contentAfterLink != null)
+                          TextSpan(
+                            text: contentAfterLink,
+                            style: TextStyle(
+                              fontSize: 15,
+                              height: 1.5,
+                              color: _greyColor,
+                            ),
+                          ),
+                      ],
                     ),
                   ),
                 ],
@@ -144,12 +182,13 @@ class EmailGuideScreen extends StatelessWidget {
             borderRadius: BorderRadius.circular(_cardRadius),
           ),
         ),
-        onPressed: (){
+        onPressed: () {
           Navigator.push(
             context,
             MaterialPageRoute(
-              builder: (context) => const RegisterScreen()),
-            );
+              builder: (context) => const RegisterScreen(),
+            ),
+          );
         },
         child: const Text(
           '我知道了，去注册',

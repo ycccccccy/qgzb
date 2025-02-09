@@ -17,8 +17,10 @@ class _RegisterScreenState extends State<RegisterScreen> {
   final TextEditingController _studentIdController = TextEditingController();
   final TextEditingController _nameController = TextEditingController();
   final TextEditingController _passwordController = TextEditingController();
+  final TextEditingController _verificationCodeController = TextEditingController();
   bool _passwordVisible = false;
   bool _isLoading = false;
+  bool _isVerificationComplete = false; // 标记验证是否完成
   String? _selectedGrade;
   int? _selectedClass;
   String? _selectedClassName;
@@ -31,6 +33,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
     _studentIdController.dispose();
     _nameController.dispose();
     _passwordController.dispose();
+    _verificationCodeController.dispose();
     super.dispose();
   }
 
@@ -48,6 +51,10 @@ class _RegisterScreenState extends State<RegisterScreen> {
 
   Future<void> _handleRegister() async {
     if (!_formKey.currentState!.validate()) {
+      return;
+    }
+    if (!_isVerificationComplete) {
+      _showErrorSnackBar('请先完成邮箱验证');
       return;
     }
     setState(() => _isLoading = true);
@@ -73,6 +80,12 @@ class _RegisterScreenState extends State<RegisterScreen> {
 
       // 2. 注册成功后，将用户信息添加到 "students" 表中
       if (res.user != null) {
+       if (res.user!.emailConfirmedAt == null) {
+        // 邮箱未验证，删除用户并提示
+        await Supabase.instance.client.auth.admin.deleteUser(res.user!.id);
+          _showErrorSnackBar('请先验证邮箱，然后重新注册');
+          return;
+        }
         await _createStudentProfile(
           userId: res.user!.id,
           studentId: studentId,
@@ -149,6 +162,51 @@ class _RegisterScreenState extends State<RegisterScreen> {
     );
   }
 
+  // 发送验证码
+  Future<void> _sendVerificationCode() async {
+    final email = _emailController.text.trim();
+    if (email.isEmpty) {
+      _showErrorSnackBar('请输入邮箱');
+      return;
+    }
+
+    try {
+      await Supabase.instance.client.auth.signInWithOtp(email: email);
+      _showSuccessSnackBar('验证码已发送，请查收');
+    } catch (e) {
+      _showErrorSnackBar('发送验证码失败：$e');
+    }
+  }
+
+  // 验证验证码
+  Future<void> _verifyVerificationCode() async {
+    final email = _emailController.text.trim();
+    final code = _verificationCodeController.text.trim();
+    if (email.isEmpty || code.isEmpty) {
+      _showErrorSnackBar('请输入邮箱和验证码');
+      return;
+    }
+
+    try {
+      final res = await Supabase.instance.client.auth.verifyOTP(
+        email: email,
+        token: code,
+        type: OtpType.email,
+      );
+
+      if (res.user != null) {
+        setState(() {
+          _isVerificationComplete = true;
+        });
+        _showSuccessSnackBar('验证成功');
+      } else {
+        _showErrorSnackBar('验证失败，请检查验证码');
+      }
+    } catch (e) {
+      _showErrorSnackBar('验证失败：$e');
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final screenWidth = MediaQuery.of(context).size.width;
@@ -181,21 +239,55 @@ class _RegisterScreenState extends State<RegisterScreen> {
                       textAlign: TextAlign.center,
                     ),
                     const SizedBox(height: 20),
-                    buildTextFormField(
-                      controller: _emailController,
-                      labelText: '邮箱',
-                      hintText: '请输入你的邮箱',
-                      prefixIcon: Icons.email,
-                      keyboardType: TextInputType.emailAddress,
-                      validator: (value) {
-                        if (value == null || value.isEmpty) {
-                          return '邮箱不能为空';
-                        }
-                        if (!value.contains('@')) {
-                          return '邮箱格式不正确';
-                        }
-                        return null;
-                      },
+                    Row(
+                      children: [
+                        Expanded(
+                          child: buildTextFormField(
+                            controller: _emailController,
+                            labelText: '邮箱',
+                            hintText: '请输入你的邮箱',
+                            prefixIcon: Icons.email,
+                            keyboardType: TextInputType.emailAddress,
+                            validator: (value) {
+                              if (value == null || value.isEmpty) {
+                                return '邮箱不能为空';
+                              }
+                              if (!value.contains('@')) {
+                                return '邮箱格式不正确';
+                              }
+                              return null;
+                            },
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        ElevatedButton(
+                          onPressed: _sendVerificationCode,
+                          child: const Text('发送验证码'),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 16),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: buildTextFormField(
+                            controller: _verificationCodeController,
+                            labelText: '验证码',
+                            hintText: '请输入验证码',
+                            prefixIcon: Icons.code,
+                            keyboardType: TextInputType.number,
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        ElevatedButton(
+                          onPressed: _verifyVerificationCode,
+                          child: const Text('验证'),
+                        ),
+                        if (_isVerificationComplete) ...[
+                          const SizedBox(width: 8),
+                          const Text('验证完毕', style: TextStyle(color: Colors.green)),
+                        ],
+                      ],
                     ),
                     const SizedBox(height: 16),
                     buildTextFormField(
@@ -472,3 +564,4 @@ class _RegisterScreenState extends State<RegisterScreen> {
     );
   }
 }
+
