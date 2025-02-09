@@ -124,7 +124,7 @@ class _AIAssistedWritingScreenState extends State<AIAssistedWritingScreen> {
       if (!hasAccess) {
         setState(() {
           _isLoading = false;
-          _errorMessage = "您没有权限访问高级模型。联系作者或赞助以获取权限";
+          _errorMessage = "你没有权限访问高级模型。联系作者或赞助以获取权限";
         });
         return;
       }
@@ -338,7 +338,7 @@ class _AIAssistedWritingScreenState extends State<AIAssistedWritingScreen> {
       appBar: PreferredSize(
         preferredSize: const Size.fromHeight(kToolbarHeight),
         child: GlobalAppBar(
-          title: "AI 写作助手",
+          title: "AI协作",
           showBackButton: true,
           actions: [],
         ),

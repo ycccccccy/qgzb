@@ -185,85 +185,71 @@ class _SendLetterScreenState extends State<SendLetterScreen>
 
   // 模糊搜索
   Future<void> _searchUsers() async {
-    final stopwatch = Stopwatch()..start();
+  setState(() {
+    _isSearching = true;
+    _showNoResultTip = false; // 开始搜索时，先隐藏“未找到结果”
+  });
 
-    try {
-      setState(() {
-        _isSearching = true;
-      });
+  final name = _receiverNameController.text.trim();
 
-      final name = _receiverNameController.text.trim();
-      //如果搜索框为空, 则收起列表, 并清空之前的结果
-      if (name.isEmpty) {
-        _animationController.reverse(); // 收起列表
-        setState(() {
-          _searchResults = [];
-          _showNoResultTip = false;
-        });
-        return;
-      }
+  if (name.isEmpty) {
+    setState(() {
+      _searchResults = [];
+      _isSearching = false; // 搜索框为空时，立即停止搜索
+      _showNoResultTip = false; // 搜索框为空，不显示“未找到结果”
+       _animationController.reverse();
+    });
+    return;
+  }
 
-      // *** 修改：从 public_students 视图查询 ***
-      final queryBuilder = Supabase.instance.client
-          .from('public_students') // 从视图查询
-          .select('''
-            name,
-            student_id,
-            class_name,
-            school
-           ''')
-          .ilike('name', '%$name%')
-          .limit(20);
+  try {
+    final queryBuilder = Supabase.instance.client
+        .from('public_students') // 从视图查询
+        .select('name, student_id, class_name, school') // 选择需要的列
+        .ilike('name', '%$name%') // 模糊匹配姓名
+        .limit(20); // 限制结果数量
 
-      final response = await queryBuilder
-          .withConverter((data) => data.map((e) => e).toList())
-          .timeout(const Duration(seconds: 3));
+    final response = await queryBuilder.withConverter((data) => data.map((e) => e as Map<String, dynamic>).toList());
 
-      final highlightQuery = name.toLowerCase();
-      setState(() {
-        _searchResults = response.map((user) {
-          return {
-            ...user,
-            // 使用 student_id 作为 id
-            'id': user['student_id'],  // 确保这里使用的是 student_id
-            'highlightedName': _highlightMatches(user['name'], highlightQuery),
-            'highlightedSubtitle': _highlightMatches(
-                '${user['school']} ${user['class_name']} ', highlightQuery),
-          };
-        }).toList();
-        _showNoResultTip = _searchResults.isEmpty;
-        if (_searchResults.isNotEmpty) {
+    final highlightQuery = name.toLowerCase();
+    final List<Map<String, dynamic>> searchResults = response.map((user) {
+      return {
+        ...user,
+        'id': user['student_id'], // 使用 student_id 作为 id
+        'highlightedName': _highlightMatches(user['name'], highlightQuery),
+        'highlightedSubtitle': _highlightMatches(
+            '${user['school']} ${user['class_name']}', highlightQuery),
+      };
+    }).toList();
+
+    setState(() {
+      _searchResults = searchResults;
+      _isSearching = false;
+      _showNoResultTip =
+          _searchResults.isEmpty; // 只有在搜索完成且结果为空时才显示
+       if (_searchResults.isNotEmpty) {
           _animationController.forward(); // 展开列表
         } else {
           _animationController.reverse(); //收起列表
         }
-      });
-    } on PostgrestException catch (e) {
-      _handleSearchError(e);
-      setState(() {
-        _showNoResultTip = true;
-        _animationController.reverse(); // 收起列表
-      });
-    } on TimeoutException catch (e) {
-      _handleSearchError('查询超时，请重试');
-      setState(() {
-        _showNoResultTip = true;
-        _animationController.reverse(); // 收起列表
-      });
-    } catch (e) {
-      _handleSearchError(e);
-      setState(() {
-        _showNoResultTip = true;
-        _animationController.reverse(); // 收起列表
-      });
-    } finally {
-      setState(() {
+    });
+
+  } on PostgrestException catch (e) {
+    _handleSearchError(e); // 统一的错误处理
+     setState(() {  // 在 catch 块中更新 UI
         _isSearching = false;
+        _showNoResultTip = true;
+         _animationController.reverse();
       });
-      stopwatch.stop();
-      // print('Search time: ${stopwatch.elapsedMilliseconds} ms');
-    }
+  } catch (e) {
+    _handleSearchError(e); // 统一的错误处理
+     setState(() { // 在 catch 块中更新 UI
+        _isSearching = false;
+         _showNoResultTip = true;
+         _animationController.reverse();
+      });
   }
+}
 
   // 错误处理
   void _handleSearchError(dynamic e) {

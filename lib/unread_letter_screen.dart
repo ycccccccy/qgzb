@@ -100,8 +100,6 @@ class _UnreadLetterScreenState extends State<UnreadLetterScreen> {
           .range(_currentPage * _pageSize, (_currentPage + 1) * _pageSize -1);
 
 
-      // 打印最简化后的查询语句
-
       final lettersResponse = await query;
 
       final filteredLetters = _filterLetters((lettersResponse as List<dynamic>?)?.cast<Map<String, dynamic>>() ?? [], studentData); // **显式类型转换和空值处理**
@@ -109,7 +107,7 @@ class _UnreadLetterScreenState extends State<UnreadLetterScreen> {
 
       return filteredLetters;
     } on PostgrestException catch (e) {
-      _showErrorSnackBar('获取信件数据时发生 Supabase 错误: $e.message}');
+      _showErrorSnackBar('获取信件数据时发生数据库错误: $e.message}');
       return [];
     } catch (e) {
       _showErrorSnackBar('获取信件数据时发生其他错误: $e');
