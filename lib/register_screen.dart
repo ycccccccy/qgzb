@@ -423,9 +423,11 @@ class _RegisterScreenState extends State<RegisterScreen> {
                     const SizedBox(height: 10),
                     TextButton(
                       onPressed: () {
-                        Navigator.pop(context);
+                        Navigator.push(context,
+                        MaterialPageRoute(
+                          builder: (context) => const LoginScreen()),);
                       },
-                      child: const Text('已有账号？去登录',
+                      child: const Text('已有账号？去登录。',
                           style: TextStyle(color: Colors.blueGrey)),
                     ),
                   ],

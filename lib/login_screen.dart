@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:hyxj/email_tips.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'home_screen_main.dart'; // 假设的主页
@@ -243,7 +244,7 @@ class _LoginScreenState extends State<LoginScreen> {
           .eq('auth_user_id', userId)
           .single();
 
-      if (response == null) {
+      if (response == false) {
         return null;
       }
 
@@ -471,7 +472,7 @@ class _LoginScreenState extends State<LoginScreen> {
                             Navigator.push(
                               context,
                               MaterialPageRoute(
-                                  builder: (context) => const RegisterScreen()),
+                                  builder: (context) => const EmailGuideScreen()),
                             );
                           },
                           child: const Text(
