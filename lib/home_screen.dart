@@ -1,12 +1,11 @@
+//home_screen.dart
 import 'dart:async';
 import 'dart:ui';
 import 'package:flutter/material.dart';
-import 'package:http/http.dart' as http;
-import 'dart:convert';
-import 'auth_service.dart';
+import 'api_service.dart'; // 导入 api_service.dart
 import 'models.dart';
 import 'send_letter_screen.dart';
-import 'received_letter_screen.dart'; // 导入重命名后的文件
+import 'received_letter_screen.dart';
 import 'sent_letters_screen.dart';
 import 'settings_screen.dart';
 import 'global_appbar.dart';
@@ -21,20 +20,15 @@ class HomeScreen extends StatefulWidget {
 class _HomeScreenState extends State<HomeScreen> {
   final double _cardBorderRadius = 8.0;
   int _selectedIndex = 0;
+  ApiService? _apiService; // 使用 ApiService
   DataService? _dataService;
-  AuthService? _authService;
 
   @override
   void initState() {
     super.initState();
-    _initializeAuthService();
-  }
-
-  Future<void> _initializeAuthService() async {
-    _authService = await AuthService.create('http://120.25.174.114:5000');
-    _dataService = DataService(authService: _authService!);
-    await _dataService?.loadInitialData();
-    setState(() {});
+    _apiService = ApiService(); // 直接创建 ApiService 实例
+    _dataService = DataService(apiService: _apiService!);
+    _dataService?.loadInitialData();
   }
 
   @override
@@ -43,7 +37,7 @@ class _HomeScreenState extends State<HomeScreen> {
     super.dispose();
   }
 
-  @override
+    @override
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: Colors.white,
@@ -134,8 +128,7 @@ class _HomeScreenState extends State<HomeScreen> {
       _selectedIndex = index;
     });
   }
-
-  Widget _buildMainContent(BuildContext context) {
+    Widget _buildMainContent(BuildContext context) {
     final screenWidth = MediaQuery.of(context).size.width;
     final isMobile =
         screenWidth < 600; // 假设小于 600 宽度认为是移动设备，你可以根据需要调整
@@ -147,8 +140,7 @@ class _HomeScreenState extends State<HomeScreen> {
           const GlobalAppBar(title: '我的应用', showBackButton: true, actions: []),
           const SizedBox(height: 16),
           Expanded(
-            child: _authService != null
-                ? (_dataService != null
+            child:  _dataService != null
                     ? (_selectedIndex == 0
                         ? _buildDashboardView(context)
                         : _selectedIndex == 1
@@ -156,8 +148,7 @@ class _HomeScreenState extends State<HomeScreen> {
                             : _selectedIndex == 2
                                 ? Container() // 占位符，根据需要替换
                                 : Container())
-                    : const Center(child: CircularProgressIndicator()))
-                : const Center(child: CircularProgressIndicator()),
+                    : const Center(child: CircularProgressIndicator())
           ),
         ],
       ),
@@ -171,12 +162,12 @@ class _HomeScreenState extends State<HomeScreen> {
           context,
           icon: Icons.mail_outline,
           title: '收件箱',
-          valueNotifier: _dataService!.receivedLetterCountNotifier, // 改这里
+          valueNotifier: _dataService!.receivedLetterCountNotifier,
           onTap: () {
             Navigator.push(
                 context,
                 MaterialPageRoute(
-                    builder: (_) => const ReceivedLetterScreen())); // 改这里
+                    builder: (_) => const ReceivedLetterScreen()));
           },
         ),
         _buildDashboardCard(
@@ -312,118 +303,62 @@ class _HomeScreenState extends State<HomeScreen> {
 }
 
 class DataService {
-  final AuthService authService;
-  final receivedLetterCountNotifier = ValueNotifier<int>(0); // 改这里
+  final ApiService apiService; // 使用 ApiService
+  final receivedLetterCountNotifier = ValueNotifier<int>(0);
   final sentLetterCountNotifier = ValueNotifier<int>(0);
   final recentContactsNotifier = ValueNotifier<List<String>>([]);
 
+  DataService({required this.apiService});
 
-  DataService({required this.authService});
-
-    Future<void> loadInitialData() async {
-    // await _fetchUnreadLetterCount(); // 不需要
+  Future<void> loadInitialData() async {
     await _fetchSentLetterCount();
     await _fetchRecentContacts();
-    await _fetchReceivedLetters();  // 获取收件箱
+     await _fetchReceivedLetters();  // 获取收件箱
   }
 
-  void dispose() {
-    receivedLetterCountNotifier.dispose(); // 改这里
+    void dispose() {
+    receivedLetterCountNotifier.dispose();
     sentLetterCountNotifier.dispose();
     recentContactsNotifier.dispose();
   }
 
-
  List<Letter> _receivedLetters = [];
 
- Future<void> _fetchReceivedLetters() async {
+  Future<void> _fetchReceivedLetters() async {
     try {
-      final token = await authService.getToken();
-        if (token == null) {
-        print('未找到 Token');
-        receivedLetterCountNotifier.value = 0; // 设置初始值
-        return;
-      }
 
-      final response = await http.get(
-        Uri.parse('http://120.25.174.114:5000/received_letters'),
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': 'Bearer $token',
-        },
-      );
+        final letters = await apiService.getReceivedLetters(); // 使用 apiService
+        _receivedLetters = letters;
+        _updateReceivedLetterCount();
 
-      if (response.statusCode == 200) {
-        final List<dynamic> data = jsonDecode(response.body);
-        _receivedLetters = data.map((item) => Letter.fromJson(item)).toList();
-        _updateReceivedLetterCount(); // 更新收件箱数量 (所有收到的信件)
-      } else {
-        print('获取收到的信件列表失败: ${response.statusCode}, ${response.body}');
-        receivedLetterCountNotifier.value = 0;
-      }
     } catch (e) {
-      print('获取收到的信件列表出错：$e');
        receivedLetterCountNotifier.value = 0;
     }
   }
 
 // 更新收件箱数量 (所有收到的信件，不再需要检查 isRead)
   void _updateReceivedLetterCount() {
-    receivedLetterCountNotifier.value = _receivedLetters.length;  //改这里
-     print("receivedLetterCount 更新成功！");
+    receivedLetterCountNotifier.value = _receivedLetters.length;
   }
 
   Future<void> _fetchSentLetterCount() async {
     try {
-      final token = await authService.getToken();
-      if (token == null) {
-        print('未找到 Token');
-        sentLetterCountNotifier.value = 0; // 设置初始值
-        return;
-      }
-      final url = Uri.parse('http://120.25.174.114:5000/letters');
-      final response = await http.get(
-        url,
-        headers: {'Authorization': 'Bearer $token'},
-      );
 
-      if (response.statusCode == 200) {
-        final letters = jsonDecode(response.body) as List<dynamic>;
+        final letters = await apiService.getSentLetters(); // 使用 apiService
         sentLetterCountNotifier.value = letters.length;
-        print("SentLetterCount 更新成功");
-      } else {
-        print('获取已发送信件数量失败: ${response.statusCode}');
-        sentLetterCountNotifier.value = 0; // 设置初始值
-      }
+
     } catch (e) {
-      print('获取已发送信件数量出错: $e');
       sentLetterCountNotifier.value = 0; // 设置初始值
     }
   }
 
   Future<void> _fetchRecentContacts() async {
     try {
-      final token = await authService.getToken();
-      if (token == null) {
-        print('未找到 Token');
-        recentContactsNotifier.value = [];
-        return;
-      }
-      final url = Uri.parse('http://120.25.174.114:5000/recent_contacts');
-      final response = await http.get(
-        url,
-        headers: {'Authorization': 'Bearer $token'},
-      );
-      if (response.statusCode == 200) {
-        final contacts = List<String>.from(jsonDecode(response.body));
+
+        final contacts = await apiService.getRecentContacts(); // 使用 apiService
         recentContactsNotifier.value = contacts;
-        print("recentContactsNotifier 更新成功！");
-      } else {
-        print('获取最近联系人失败: ${response.statusCode}');
-        recentContactsNotifier.value = []; // 设置初始值
-      }
+
     } catch (e) {
-      print('获取最近联系人出错: $e');
       recentContactsNotifier.value = []; // 设置初始值
     }
   }

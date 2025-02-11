@@ -4,8 +4,9 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'models.dart';
 
 class ApiService {
-  final String baseUrl = 'http://120.25.174.114:5000'; // 开发环境
-  //final String baseUrl = 'http://120.25.174.114:5000'; // 本地环境
+  //final String baseUrl = 'http://120.25.174.114:5000'; // 开发环境
+  //final String baseUrl = 'http://172.17.26.204:5000'; // 本地环境
+  final String baseUrl = 'https://szsgzzx.cn/api';   //  生产环境, 使用 HTTPS
 
   Future<String?> getToken() async {
     SharedPreferences prefs = await SharedPreferences.getInstance();
@@ -319,7 +320,7 @@ class ApiService {
     }
   }
 
-  // 检查 AI 访问权限 
+  // 检查 AI 访问权限
     Future<bool> checkAIAccess() async {
     final token = await getToken();
     if (token == null) {
