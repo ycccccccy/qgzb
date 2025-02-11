@@ -5,6 +5,7 @@ import 'models.dart';
 
 class ApiService {
   final String baseUrl = 'http://120.25.174.114:5000'; // 开发环境
+  //final String baseUrl = 'http://120.25.174.114:5000'; // 本地环境
 
   Future<String?> getToken() async {
     SharedPreferences prefs = await SharedPreferences.getInstance();
