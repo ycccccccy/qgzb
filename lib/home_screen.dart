@@ -1,16 +1,18 @@
 import 'dart:async';
 import 'dart:ui';
 import 'package:flutter/material.dart';
-import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:http/http.dart' as http;
+import 'dart:convert';
+import 'auth_service.dart';
+import 'models.dart';
 import 'send_letter_screen.dart';
-import 'unread_letter_screen.dart';
+import 'received_letter_screen.dart'; // 导入重命名后的文件
 import 'sent_letters_screen.dart';
 import 'settings_screen.dart';
 import 'global_appbar.dart';
 
-
 class HomeScreen extends StatefulWidget {
-  const HomeScreen({super.key});
+  const HomeScreen({Key? key}) : super(key: key);
 
   @override
   _HomeScreenState createState() => _HomeScreenState();
@@ -19,18 +21,25 @@ class HomeScreen extends StatefulWidget {
 class _HomeScreenState extends State<HomeScreen> {
   final double _cardBorderRadius = 8.0;
   int _selectedIndex = 0;
-  final _dataService = DataService(); // DataService 实例在这里创建
+  DataService? _dataService;
+  AuthService? _authService;
 
   @override
   void initState() {
     super.initState();
-    _dataService.loadInitialData();
+    _initializeAuthService();
   }
 
+  Future<void> _initializeAuthService() async {
+    _authService = await AuthService.create('http://120.25.174.114:5000');
+    _dataService = DataService(authService: _authService!);
+    await _dataService?.loadInitialData();
+    setState(() {});
+  }
 
   @override
   void dispose() {
-    _dataService.dispose();
+    _dataService?.dispose();
     super.dispose();
   }
 
@@ -38,7 +47,7 @@ class _HomeScreenState extends State<HomeScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: Colors.white,
-      appBar: null,
+      appBar: null, // 隐藏默认的 AppBar
       drawer: _buildDrawer(),
       body: SafeArea(
         child: _buildMainContent(context),
@@ -61,50 +70,52 @@ class _HomeScreenState extends State<HomeScreen> {
             children: [
               const DrawerHeader(
                 decoration: BoxDecoration(
-                  color: Colors.transparent,
+                  color: Colors.transparent, // 透明背景
                 ),
-                child: Text('菜单',
-                    style: TextStyle(fontSize: 24, color: Colors.black87)),
+                child: Text(
+                  '菜单',
+                  style: TextStyle(fontSize: 24, color: Colors.black87),
+                ),
               ),
               _buildDrawerItem(
-                  icon: Icons.home,
-                  title: '主页',
-                  index: 0,
-                  onTap:  () {
-                    _updateSelectedIndex(0);
-                    Navigator.pop(context);
-                  }
+                icon: Icons.home,
+                title: '主页',
+                index: 0,
+                onTap: () {
+                  _updateSelectedIndex(0);
+                  Navigator.pop(context); // 关闭抽屉
+                },
               ),
               _buildDrawerItem(
-                  icon: Icons.mail,
-                  title: '写信',
-                  index: 1,
-                  onTap: () {
-                    _updateSelectedIndex(1);
-                    Navigator.pop(context);
-                    Navigator.of(context).push(
-                        MaterialPageRoute(builder: (_) => const SendLetterScreen()));
-                  }
+                icon: Icons.mail,
+                title: '写信',
+                index: 1,
+                onTap: () {
+                  _updateSelectedIndex(1);
+                  Navigator.pop(context);
+                  Navigator.of(context).push(MaterialPageRoute(
+                      builder: (_) => const SendLetterScreen()));
+                },
               ),
               _buildDrawerItem(
-                  icon: Icons.settings,
-                  title: '设置',
-                  index: 2,
-                  onTap: () {
-                    _updateSelectedIndex(2);
-                    Navigator.pop(context);
-                    Navigator.of(context).push(
-                        MaterialPageRoute(builder: (_) => const SettingsScreen()));
-                  }
+                icon: Icons.settings,
+                title: '设置',
+                index: 2,
+                onTap: () {
+                  _updateSelectedIndex(2);
+                  Navigator.pop(context);
+                  Navigator.of(context).push(MaterialPageRoute(
+                      builder: (_) => const SettingsScreen()));
+                },
               ),
             ],
-          )
+          ),
         ],
       ),
     );
   }
 
-  Widget _buildDrawerItem({
+    Widget _buildDrawerItem({
     required IconData icon,
     required String title,
     required int index,
@@ -118,7 +129,6 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
-
   void _updateSelectedIndex(int index) {
     setState(() {
       _selectedIndex = index;
@@ -127,64 +137,77 @@ class _HomeScreenState extends State<HomeScreen> {
 
   Widget _buildMainContent(BuildContext context) {
     final screenWidth = MediaQuery.of(context).size.width;
-    final isMobile = screenWidth < 600;
-    return Padding(
-        padding: EdgeInsets.all(isMobile ? 16 : 32),
-        child: Column(
-          children: [
-            const GlobalAppBar(title: '我的应用', showBackButton: true, actions: [],), // 添加返回按钮
-            const SizedBox(height: 16),
-            Expanded(
-              child: _selectedIndex == 0
-                  ? _buildDashboardView(context)
-                  : _selectedIndex == 1
-                  ? Container()
-                  : _selectedIndex == 2
-                  ? Container()
-                  : Container(),
-            ),
-          ],
-        ));
-  }
+    final isMobile =
+        screenWidth < 600; // 假设小于 600 宽度认为是移动设备，你可以根据需要调整
 
+    return Padding(
+      padding: EdgeInsets.all(isMobile ? 16 : 32), // 根据是否为移动设备调整边距
+      child: Column(
+        children: [
+          const GlobalAppBar(title: '我的应用', showBackButton: true, actions: []),
+          const SizedBox(height: 16),
+          Expanded(
+            child: _authService != null
+                ? (_dataService != null
+                    ? (_selectedIndex == 0
+                        ? _buildDashboardView(context)
+                        : _selectedIndex == 1
+                            ? Container() // 占位符，根据需要替换
+                            : _selectedIndex == 2
+                                ? Container() // 占位符，根据需要替换
+                                : Container())
+                    : const Center(child: CircularProgressIndicator()))
+                : const Center(child: CircularProgressIndicator()),
+          ),
+        ],
+      ),
+    );
+  }
 
   Widget _buildDashboardView(BuildContext context) {
     return Column(
       children: [
-        _buildDashboardCard(context,
-            icon: Icons.mail_outline,
-            title: '未读信件',
-            valueNotifier: _dataService.unreadLetterCountNotifier,
-            onTap: () {
-              Navigator.push(
-                  context, MaterialPageRoute(builder: (_) => const UnreadLetterScreen()));
-            }),
+        _buildDashboardCard(
+          context,
+          icon: Icons.mail_outline,
+          title: '收件箱',
+          valueNotifier: _dataService!.receivedLetterCountNotifier, // 改这里
+          onTap: () {
+            Navigator.push(
+                context,
+                MaterialPageRoute(
+                    builder: (_) => const ReceivedLetterScreen())); // 改这里
+          },
+        ),
         _buildDashboardCard(
           context,
           icon: Icons.send_outlined,
           title: '已发送信件',
-          valueNotifier: _dataService.sentLetterCountNotifier,
+          valueNotifier: _dataService!.sentLetterCountNotifier,
           onTap: () {
             Navigator.push(
-                context, MaterialPageRoute(builder: (_) => const SentLettersScreen()));
+                context,
+                MaterialPageRoute(builder: (_) => const SentLettersScreen()));
           },
         ),
-        _buildDashboardCard(context,
-            icon: Icons.edit_outlined,
-            title: '发送信件',
-            valueNotifier: ValueNotifier(''), //  发送信件卡片不需要 ValueNotifier
-            onTap: () {
-              Navigator.push(
-                  context, MaterialPageRoute(builder: (_) => const SendLetterScreen()));
-            }),
-        _buildContactsCard(context),
+        _buildDashboardCard(
+          context,
+          icon: Icons.edit_outlined,
+          title: '发送信件',
+          valueNotifier: ValueNotifier(''), // 发送信件卡片不需要 ValueNotifier
+          onTap: () {
+            Navigator.push(context,
+                MaterialPageRoute(builder: (_) => const SendLetterScreen()));
+          },
+        ),
+        _buildContactsCard(context), // 最近联系人
       ],
     );
   }
 
-  Widget _buildContactsCard(BuildContext context) {
+    Widget _buildContactsCard(BuildContext context) {
     return Card(
-      elevation: 1,
+      elevation: 1, // 卡片阴影
       margin: const EdgeInsets.symmetric(vertical: 8),
       shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(_cardBorderRadius)),
@@ -197,35 +220,35 @@ class _HomeScreenState extends State<HomeScreen> {
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                const Text('常用联系人',
-                    style: TextStyle(
-                        fontSize: 16,
-                        fontWeight: FontWeight.bold,
-                        color: Colors.black87)),
+                const Text(
+                  '常用联系人',
+                  style: TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.bold,
+                      color: Colors.black87),
+                ),
                 Icon(Icons.group_outlined, size: 20, color: Colors.grey[700]),
               ],
             ),
             const SizedBox(height: 10),
             ValueListenableBuilder<List<String>>(
-                valueListenable: _dataService.recentContactsNotifier,
-                builder: (context, contacts, _) {
-                  if (contacts.isEmpty) {
-                    return Text('无常用联系人',
-                        style: TextStyle(color: Colors.grey[500]));
-                  }
-                  return Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: contacts
-                        .map((name) => Padding(
-                      padding:
-                      const EdgeInsets.symmetric(vertical: 4.0),
-                      child: Text(name,
-                          style: TextStyle(color: Colors.grey[700])),
-                    ))
-                        .toList(),
-                  );
-
+              valueListenable: _dataService!.recentContactsNotifier,
+              builder: (context, contacts, _) {
+                if (contacts.isEmpty) {
+                  return Text('无常用联系人',
+                      style: TextStyle(color: Colors.grey[500])); // 提示信息
                 }
+                return Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: contacts
+                      .map((name) => Padding(
+                            padding: const EdgeInsets.symmetric(vertical: 4.0),
+                            child: Text(name,
+                                style: TextStyle(color: Colors.grey[700])),
+                          ))
+                      .toList(),
+                );
+              },
             ),
           ],
         ),
@@ -233,17 +256,19 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
-  Widget _buildDashboardCard(BuildContext context,
-      {required IconData icon,
-        required String title,
-        required ValueNotifier valueNotifier,
-        required VoidCallback onTap}) {
+  Widget _buildDashboardCard(
+    BuildContext context, {
+    required IconData icon,
+    required String title,
+    required ValueNotifier valueNotifier,
+    required VoidCallback onTap,
+  }) {
     return Card(
       elevation: 1,
       margin: const EdgeInsets.symmetric(vertical: 8),
       shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(_cardBorderRadius)),
-      color: Colors.grey[50],
+      color: Colors.grey[50], // 卡片背景色
       child: InkWell(
         onTap: onTap,
         child: Padding(
@@ -251,26 +276,30 @@ class _HomeScreenState extends State<HomeScreen> {
           child: Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              Icon(icon, size: 24, color: Colors.blue),
+              Icon(icon, size: 24, color: Colors.blue), // 卡片图标
               const SizedBox(width: 12),
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(title,
-                        style: const TextStyle(
-                            fontSize: 16,
-                            fontWeight: FontWeight.w500,
-                            color: Colors.black87)),
+                    Text(
+                      title,
+                      style: const TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.w500,
+                          color: Colors.black87),
+                    ),
                     const SizedBox(height: 4),
                     ValueListenableBuilder(
                       valueListenable: valueNotifier,
                       builder: (context, value, _) {
-                        return Text(value.toString(),
-                            style: TextStyle(
-                                fontSize: 18, color: Colors.grey[700]));
+                        return Text(
+                          value.toString(),
+                          style:
+                              TextStyle(fontSize: 18, color: Colors.grey[700]),
+                        );
                       },
-                    )
+                    ),
                   ],
                 ),
               ),
@@ -283,153 +312,119 @@ class _HomeScreenState extends State<HomeScreen> {
 }
 
 class DataService {
-  final unreadLetterCountNotifier = ValueNotifier<int>(0);
+  final AuthService authService;
+  final receivedLetterCountNotifier = ValueNotifier<int>(0); // 改这里
   final sentLetterCountNotifier = ValueNotifier<int>(0);
   final recentContactsNotifier = ValueNotifier<List<String>>([]);
 
-  late StreamSubscription _unreadSubscription;
-  late StreamSubscription _sentSubscription;
-  late StreamSubscription _recentContactsSubscription;
 
+  DataService({required this.authService});
 
-  void loadInitialData() {
-    _fetchUnreadLetterCount();
-    _fetchSentLetterCount();
-    _fetchRecentContacts();
-    _startPolling();
-  }
-
-  void _startPolling() {
-    _unreadSubscription =  Stream.periodic(const Duration(seconds: 5))
-        .asyncMap((_) =>  _fetchUnreadLetterCount()).listen((event) { });
-    _sentSubscription = Stream.periodic(const Duration(seconds: 5))
-        .asyncMap((_) =>  _fetchSentLetterCount()).listen((event) { });
-    _recentContactsSubscription = Stream.periodic(const Duration(seconds: 5))
-        .asyncMap((_) =>  _fetchRecentContacts()).listen((event) { });
+    Future<void> loadInitialData() async {
+    // await _fetchUnreadLetterCount(); // 不需要
+    await _fetchSentLetterCount();
+    await _fetchRecentContacts();
+    await _fetchReceivedLetters();  // 获取收件箱
   }
 
   void dispose() {
-    _unreadSubscription.cancel();
-    _sentSubscription.cancel();
-    _recentContactsSubscription.cancel();
-    unreadLetterCountNotifier.dispose();
+    receivedLetterCountNotifier.dispose(); // 改这里
     sentLetterCountNotifier.dispose();
     recentContactsNotifier.dispose();
   }
 
-    Future<Map<String, dynamic>?> _fetchStudentDataForHomeScreen(String currentUserId) async {
-    final response = await Supabase.instance.client
-        .from('students')
-        .select('name, class_name, allow_anonymous,school')
-        .eq('auth_user_id', currentUserId)
-        .maybeSingle(); // 使用 maybeSingle() 来处理可能找不到记录的情况;
 
-    return response as Map<String, dynamic>?;
+ List<Letter> _receivedLetters = [];
+
+ Future<void> _fetchReceivedLetters() async {
+    try {
+      final token = await authService.getToken();
+        if (token == null) {
+        print('未找到 Token');
+        receivedLetterCountNotifier.value = 0; // 设置初始值
+        return;
+      }
+
+      final response = await http.get(
+        Uri.parse('http://120.25.174.114:5000/received_letters'),
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': 'Bearer $token',
+        },
+      );
+
+      if (response.statusCode == 200) {
+        final List<dynamic> data = jsonDecode(response.body);
+        _receivedLetters = data.map((item) => Letter.fromJson(item)).toList();
+        _updateReceivedLetterCount(); // 更新收件箱数量 (所有收到的信件)
+      } else {
+        print('获取收到的信件列表失败: ${response.statusCode}, ${response.body}');
+        receivedLetterCountNotifier.value = 0;
+      }
+    } catch (e) {
+      print('获取收到的信件列表出错：$e');
+       receivedLetterCountNotifier.value = 0;
+    }
   }
 
-       Future<void> _fetchUnreadLetterCount() async {
-
-    try {
-      final currentUserId = Supabase.instance.client.auth.currentUser?.id;
-      if (currentUserId == null) {
-        unreadLetterCountNotifier.value = 0;
-        return;
-      }
-
-      final studentData = await _fetchStudentDataForHomeScreen(currentUserId);
-      if (studentData == null) {
-        unreadLetterCountNotifier.value = 0;
-        return;
-      }
-      final allowAnonymous = studentData['allow_anonymous'] ?? false;
-      final studentName = studentData['name'];
-      final myClass = studentData['class_name'];
-
-
-      // **Corrected Absolute Simplest Query - .eq('receiver_name', studentName) ONLY:**
-      final query = Supabase.instance.client
-          .from('letters')
-          .select()
-          .eq('receiver_name', studentName); // **Corrected Absolute Simplest Query: .eq() ONLY**
-
-
-      // Print simplified query - correct method
-
-      final lettersResponse = await query;
-
-      List<Map<String, dynamic>> filteredLetters;
-      if (!allowAnonymous) {
-        filteredLetters = (lettersResponse as List<dynamic>?)
-            ?.where((letter) =>
-        (letter['is_anonymous'] == false ||
-            letter['is_anonymous'] == null) &&
-            (letter['receiver_class'] == myClass ||
-                letter['receiver_class'] == null))
-            .toList()
-            .cast<Map<String, dynamic>>() ?? [];
-      } else {
-        filteredLetters = (lettersResponse as List<dynamic>?)
-            ?.where((letter) =>
-        (letter['receiver_class'] == myClass ||
-            letter['receiver_class'] == null))
-            .toList()
-            .cast<Map<String, dynamic>>() ?? [];
-      }
-      unreadLetterCountNotifier.value = filteredLetters.length;
-
-
-    } on PostgrestException catch (e) {
-      unreadLetterCountNotifier.value = 0;
-    } catch (e) {
-      unreadLetterCountNotifier.value = 0;
-    }
+// 更新收件箱数量 (所有收到的信件，不再需要检查 isRead)
+  void _updateReceivedLetterCount() {
+    receivedLetterCountNotifier.value = _receivedLetters.length;  //改这里
+     print("receivedLetterCount 更新成功！");
   }
 
   Future<void> _fetchSentLetterCount() async {
     try {
-      final currentUserId = Supabase.instance.client.auth.currentUser?.id;
-      if (currentUserId == null) {
-        sentLetterCountNotifier.value = 0; // 用户未登录，已发送信件数为 0
+      final token = await authService.getToken();
+      if (token == null) {
+        print('未找到 Token');
+        sentLetterCountNotifier.value = 0; // 设置初始值
         return;
       }
+      final url = Uri.parse('http://120.25.174.114:5000/letters');
+      final response = await http.get(
+        url,
+        headers: {'Authorization': 'Bearer $token'},
+      );
 
-      final sentLettersResponse = await Supabase.instance.client
-          .from('letters')
-          .select()
-          .eq('sender_id', currentUserId);
-      sentLetterCountNotifier.value = sentLettersResponse.length;
-    } on PostgrestException catch (e) {
-      sentLetterCountNotifier.value = 0;
+      if (response.statusCode == 200) {
+        final letters = jsonDecode(response.body) as List<dynamic>;
+        sentLetterCountNotifier.value = letters.length;
+        print("SentLetterCount 更新成功");
+      } else {
+        print('获取已发送信件数量失败: ${response.statusCode}');
+        sentLetterCountNotifier.value = 0; // 设置初始值
+      }
     } catch (e) {
-      sentLetterCountNotifier.value = 0;
+      print('获取已发送信件数量出错: $e');
+      sentLetterCountNotifier.value = 0; // 设置初始值
     }
   }
 
-
   Future<void> _fetchRecentContacts() async {
     try {
-      final currentUserId = Supabase.instance.client.auth.currentUser?.id;
-      if (currentUserId == null) {
-        recentContactsNotifier.value = []; // 用户未登录，常用联系人为空
+      final token = await authService.getToken();
+      if (token == null) {
+        print('未找到 Token');
+        recentContactsNotifier.value = [];
         return;
       }
-
-      final response = await Supabase.instance.client
-          .from('letters')
-          .select('receiver_name')
-          .eq('sender_id', currentUserId)
-          .limit(5);
-
-      List<String> names = (response as List<dynamic>?)
-          ?.map((e) => e['receiver_name'].toString())
-          .toList()
-          .toSet()
-          .toList() ?? [];
-      recentContactsNotifier.value = names;
-    } on PostgrestException catch (e) {
-      recentContactsNotifier.value = [];
+      final url = Uri.parse('http://120.25.174.114:5000/recent_contacts');
+      final response = await http.get(
+        url,
+        headers: {'Authorization': 'Bearer $token'},
+      );
+      if (response.statusCode == 200) {
+        final contacts = List<String>.from(jsonDecode(response.body));
+        recentContactsNotifier.value = contacts;
+        print("recentContactsNotifier 更新成功！");
+      } else {
+        print('获取最近联系人失败: ${response.statusCode}');
+        recentContactsNotifier.value = []; // 设置初始值
+      }
     } catch (e) {
-      recentContactsNotifier.value = [];
+      print('获取最近联系人出错: $e');
+      recentContactsNotifier.value = []; // 设置初始值
     }
   }
 }

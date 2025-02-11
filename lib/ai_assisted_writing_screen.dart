@@ -4,9 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'package:flutter_markdown/flutter_markdown.dart';
 import 'global_appbar.dart';
-import 'package:flutter/services.dart';
-import 'package:supabase_flutter/supabase_flutter.dart';
-import 'package:shared_preferences/shared_preferences.dart';
+import 'api_service.dart'; // 导入 ApiService
 
 enum AiAssistanceMode {
   generate,
@@ -39,25 +37,23 @@ class _AIAssistedWritingScreenState extends State<AIAssistedWritingScreen> {
   final String flashApiKey = "sk-zqslasquxmtenzcwmrexjpzaklrsjencmeodqznbvtytmlcp"; // Flash 模型 API 密钥
   final String apiUrl = "https://api.siliconflow.cn/v1/chat/completions";
 
-  String _selectedModel = "deepseek-ai/DeepSeek-R1-Distill-Llama-8B";
+  String _selectedModel = "deepseek-ai/DeepSeek-R1-Distill-Qwen-7B";
   final List<Map<String, String>> _availableModels = [
-    {"id": "deepseek-ai/DeepSeek-R1-Distill-Llama-8B", "name": "Flash"},
+    {"id": "deepseek-ai/DeepSeek-R1-Distill-Qwen-7B", "name": "Flash"},
     {"id": "Pro/deepseek-ai/DeepSeek-R1", "name": "Advanced"},
   ];
 
-  final SupabaseClient supabase = Supabase.instance.client;
-  late final SharedPreferences _prefs;
-  String? _authUserId;
-
-  static const String _currentUserIdKey = 'current_user_id';
+  final _apiService = ApiService(); // 创建 ApiService 实例, 用于检查是否登录
 
   @override
   void initState() {
     super.initState();
-    _selectedMode = AiAssistanceMode.generate;
+    _selectedMode = widget.mode;
     if (widget.initialText != null && widget.initialText!.isNotEmpty) {
       _promptController.text = widget.initialText!;
-      _selectedMode = AiAssistanceMode.polish;
+      if (_selectedMode == AiAssistanceMode.generate) {
+        _selectedMode = AiAssistanceMode.polish;
+      }
       _addMessage("user",
           "请润色以下文本，使其表达更流畅、更生动：${widget.initialText!.replaceAll('"', '')}");
     }
@@ -65,9 +61,7 @@ class _AIAssistedWritingScreenState extends State<AIAssistedWritingScreen> {
   }
 
   Future<void> _loadAuthUserId() async {
-    _prefs = await SharedPreferences.getInstance();
     setState(() {
-      _authUserId = _prefs.getString(_currentUserIdKey);
     });
   }
 
@@ -77,7 +71,7 @@ class _AIAssistedWritingScreenState extends State<AIAssistedWritingScreen> {
     super.dispose();
   }
 
-  void _addMessage(String role, String content,
+   void _addMessage(String role, String content,
       {String? reasoning, int? thinkingDuration, bool isExpanded = true}) {
     setState(() {
       _messages.add({
@@ -90,50 +84,28 @@ class _AIAssistedWritingScreenState extends State<AIAssistedWritingScreen> {
     });
   }
 
-  Future<bool> _checkAIAccess() async {
-    try {
-      if (_authUserId == null) {
-        return false;
-      }
 
-      final response = await supabase
-          .from('students')
-          .select('ai_allowed')
-          .eq('auth_user_id', _authUserId as Object)
-          .maybeSingle();
-
-      if (response == null) {
-        return false;
-      }
-
-      return response['ai_allowed'] ?? false;
-    } catch (error) {
-      return false;
-    }
-  }
 
 
   Future<void> _generateText(AiAssistanceMode mode) async {
-    // 1. 根据所选模型选择 API 密钥
-    String currentApiKey =
-        (_selectedModel == "Pro/deepseek-ai/DeepSeek-R1") ? advancedApiKey : flashApiKey;
-
-    // 2. 权限检查 (仅对高级模型)
-    if (_selectedModel == "Pro/deepseek-ai/DeepSeek-R1") {
-      final hasAccess = await _checkAIAccess();
-      if (!hasAccess) {
-        setState(() {
-          _isLoading = false;
-          _errorMessage = "你没有权限访问高级模型。联系作者或赞助以获取权限";
-        });
-        return;
-      }
-    }
-
     setState(() {
       _isLoading = true;
       _errorMessage = null;
     });
+
+  // 1. 权限检查
+  if (_selectedModel == "Pro/deepseek-ai/DeepSeek-R1") {
+    final hasAccess = await _apiService.checkAIAccess();
+    if (!hasAccess) {
+      if (mounted) { // 确保在 setState 前检查
+        setState(() {
+          _isLoading = false;
+          _errorMessage = "请先登录或联系管理员开通AI高级版权限";
+        });
+      }
+      return;
+    }
+  }
 
     final prompt = _promptController.text.trim();
     _promptController.clear();
@@ -156,6 +128,9 @@ class _AIAssistedWritingScreenState extends State<AIAssistedWritingScreen> {
     }
 
     try {
+        // 2. 根据所选模型选择 API 密钥
+        String currentApiKey =
+            (_selectedModel == "Pro/deepseek-ai/DeepSeek-R1") ? advancedApiKey : flashApiKey;
       // 3. 使用正确的 API 密钥
       final request = http.Request('Post', Uri.parse(apiUrl))
         ..headers.addAll({

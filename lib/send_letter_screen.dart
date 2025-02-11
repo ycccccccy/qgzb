@@ -1,10 +1,11 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
-import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import 'school_data.dart';
+import 'school_data.dart'; // 假设你有这个文件
 import 'global_appbar.dart';
 import 'ai_assisted_writing_screen.dart';
+import 'api_service.dart';
+import 'models.dart';
 
 class SendLetterScreen extends StatefulWidget {
   const SendLetterScreen({Key? key}) : super(key: key);
@@ -15,11 +16,9 @@ class SendLetterScreen extends StatefulWidget {
 
 class _SendLetterScreenState extends State<SendLetterScreen>
     with SingleTickerProviderStateMixin {
-  // 添加 SingleTickerProviderStateMixin
-
   final _formKey = GlobalKey<FormState>();
   final TextEditingController _receiverNameController = TextEditingController();
-  final TextEditingController _schoolController = TextEditingController();
+  final TextEditingController _schoolController = TextEditingController(); // 用于显示学校
   final TextEditingController _contentController = TextEditingController();
   bool _isLoading = false;
   bool _isAnonymous = false;
@@ -29,26 +28,25 @@ class _SendLetterScreenState extends State<SendLetterScreen>
   String? _selectedGrade;
   String? _selectedClassNumber;
   String? _selectedClassName;
-  bool _isSpecificClass = false;
-  String? _senderName;
+  bool _isSpecificClass = false;  // 是否指定了具体班级
   List<Map<String, dynamic>> _searchResults = [];
   bool _isSearching = false;
   Timer? _debounceTimer;
-  String _lastSearchConditions = '';
-  bool _showNoResultTip = false;
-  bool _isSearchResultSelected = false;
-  Map<String, dynamic>? _selectedSearchResult;
+  String _lastSearchConditions = ''; // 记录上一次搜索的条件
+  bool _showNoResultTip = false;    // 是否显示“未找到结果”提示
+  bool _isSearchResultSelected = false; // 是否选择了搜索结果
+  Map<String, dynamic>? _selectedSearchResult; // 保存选择的搜索结果
 
-  // 新增：动画控制器
-  late AnimationController _animationController;
-  late Animation<double> _animation;
+  late AnimationController _animationController; // 动画控制器
+  late Animation<double> _animation; // 动画
+
+  final _apiService = ApiService(); // 使用 ApiService
 
   @override
   void initState() {
     super.initState();
-    _loadMySchoolAndName();
+    _loadMySchoolAndName(); // 加载用户的学校和姓名
 
-    // 初始化动画控制器
     _animationController = AnimationController(
       vsync: this,
       duration: const Duration(milliseconds: 300),
@@ -62,7 +60,7 @@ class _SendLetterScreenState extends State<SendLetterScreen>
     // 监听搜索框变化, 如果从有内容到无内容, 则收起列表
     _receiverNameController.addListener(() {
       if (_receiverNameController.text.isEmpty) {
-        _animationController.reverse(); // 收起
+        _animationController.reverse();
       }
     });
   }
@@ -77,43 +75,47 @@ class _SendLetterScreenState extends State<SendLetterScreen>
     super.dispose();
   }
 
+    // 更新 _selectedClassName
   void _updateClassValue() {
     setState(() {
       if (_selectedGrade != null && _selectedClassNumber != null) {
-        _selectedClassName = '$_selectedGrade$_selectedClassNumber';
+         _selectedClassName = '$_selectedGrade$_selectedClassNumber班';
       } else {
         _selectedClassName = null;
       }
     });
   }
 
-  Future<void> _loadMySchoolAndName() async {
-    final prefs = await SharedPreferences.getInstance();
-    final String? rememberedId = prefs.getString('rememberedId');
-    final String? rememberedName = prefs.getString('rememberedName');
-    if (rememberedId != null && rememberedName != null) {
-      try {
-        final studentData =
-            await _fetchStudentData(rememberedId, rememberedName);
-        if (studentData != null) {
-          setState(() {
-            _mySchool = studentData['school'];
-            _senderName = studentData['name'];
-          });
-        }
-      } catch (e) {
-        // 可以选择在这里处理错误，例如显示一个提示
-        print("Error loading school and name: $e"); // 打印错误信息
+// 加载用户学校和姓名
+Future<void> _loadMySchoolAndName() async {
+  final prefs = await SharedPreferences.getInstance();
+  final String? rememberedId = prefs.getString('rememberedId');
+  final String? rememberedName = prefs.getString('rememberedName');
+
+  if (rememberedId != null && rememberedName != null) {
+    try {
+      final studentData =
+          await _apiService.fetchStudentData(rememberedId, rememberedName);
+      if (studentData != null) {
+        setState(() {
+          _mySchool = studentData['school'];
+        });
+      }
+    } catch (e) {
+      print("Error loading school and name: $e");
+      if (mounted) {
+        _showErrorSnackBar(e.toString()); // 显示错误
       }
     }
   }
+}
+
 
   Future<void> _sendLetterWithSearchResult() async {
-    if (!_formKey.currentState!.validate() || _selectedSchool == null) {
-      _showErrorSnackBar('请选择目标学校，并填写内容');
+    if (!_formKey.currentState!.validate() || _selectedSearchResult == null) { // 改为检查 _selectedSearchResult
+      _showErrorSnackBar('请选择收件人'); // 更准确的提示
       return;
     }
-    // 移除对 _selectedClassName 的检查，允许发送给搜索结果中的用户
     await _sendLetter();
   }
 
@@ -122,14 +124,13 @@ class _SendLetterScreenState extends State<SendLetterScreen>
       return;
     }
 
-    // 不需要检查 _selectedSchool 是否为空，因为如果选择了搜索结果，_selectedSchool 会被赋值
-
+    // 如果没有选择搜索结果 且 没有选择具体班级，则显示确认对话框
     if (!_isSearchResultSelected &&
         (_selectedClassName == null || _selectedClassName!.isEmpty)) {
-      final confirmSend = await _showConfirmationDialog();
-      if (!confirmSend) {
-        return;
-      }
+          final confirmSend = await _showConfirmationDialog();
+          if (!confirmSend) {
+            return; // 用户取消发送
+          }
     }
 
     setState(() {
@@ -137,45 +138,45 @@ class _SendLetterScreenState extends State<SendLetterScreen>
     });
 
     try {
-      final currentUserId =
-          Supabase.instance.client.auth.currentUser?.id; // 使用 Supabase Auth 获取 currentUserId
-      if (currentUserId == null) {
-        _showErrorSnackBar('用户未登录，无法发送信件');
-        return;
-      }
-
-      final prefs =
-          await SharedPreferences.getInstance(); // sender_name 暂时保持从 SharedPreferences 获取
+      final prefs = await SharedPreferences.getInstance();
       final String? currentUserName = prefs.getString('rememberedName');
-      final senderName = currentUserName ?? '';
+      final senderName = currentUserName ?? ''; // 如果为空，则使用空字符串
 
-      final receiverName = _receiverNameController.text.trim();
+      // final receiverName = _receiverNameController.text.trim(); // 不再需要，从 _selectedSearchResult 或表单获取
       final content = _contentController.text.trim();
 
-      // 使用 _selectedSchool，如果选择了搜索结果，它会被赋值
-      final targetSchool = _selectedSchool;
-      final String? receiverClass = _isSearchResultSelected
-          ? _selectedSearchResult!['class_name']
-          : _selectedClassName;
+    // 根据是否选择了搜索结果，构造不同的 Letter 对象
+      Letter letter;
+      if (_isSearchResultSelected) {
+      // 从搜索结果构造 Letter
+        letter = Letter(
+          receiverName: _selectedSearchResult!['name'],
+          receiverClass: _selectedSearchResult!['class_name'] ?? '', // 搜索结果中的班级
+          content: content,
+          isAnonymous: _isAnonymous.toString(),
+          mySchool: _mySchool ?? '',
+          targetSchool: _selectedSearchResult!['school'] ?? '', // 搜索结果中的学校
+          senderName: _isAnonymous ? "匿名" : senderName,
+        );
+      } else {
+      // 从表单构造 Letter
+        letter = Letter(
+          receiverName: _receiverNameController.text.trim(),
+          receiverClass: _selectedClassName ?? '',  // 可能为空
+          content: content,
+          isAnonymous: _isAnonymous.toString(),
+          mySchool: _mySchool ?? '',
+          targetSchool: _selectedSchool ?? '', // 从表单获取
+          senderName: _isAnonymous ? "匿名" : senderName,
+        );
+      }
 
-      final letter = await Supabase.instance.client.from('letters').insert({
-        'sender_id': currentUserId,
-        'sender_name': _isAnonymous ? "匿名" : senderName, // 根据 _isAnonymous 决定是否匿名
-        'receiver_name': receiverName,
-        'content': content,
-        'send_time': DateTime.now().toIso8601String(),
-        'is_anonymous': _isAnonymous, // 添加 is_anonymous 字段
-        'target_school': targetSchool,
-        'my_school': _mySchool,
-        'receiver_class': receiverClass,
-      }).select().single();
+      await _apiService.createLetter(letter);
 
       _showSuccessSnackBar('信件发送成功');
-      Navigator.pop(context);
-    } on PostgrestException catch (e) {
-      _showErrorSnackBar('发送失败: ${e.message}');
+      Navigator.pop(context); // 发送成功后，返回上一页
     } catch (e) {
-      _showErrorSnackBar('发送失败: $e');
+      _showErrorSnackBar(e.toString());
     } finally {
       setState(() {
         _isLoading = false;
@@ -183,137 +184,114 @@ class _SendLetterScreenState extends State<SendLetterScreen>
     }
   }
 
-  // 模糊搜索
   Future<void> _searchUsers() async {
-  setState(() {
-    _isSearching = true;
-    _showNoResultTip = false; // 开始搜索时，先隐藏“未找到结果”
-  });
-
-  final name = _receiverNameController.text.trim();
-
-  if (name.isEmpty) {
     setState(() {
-      _searchResults = [];
-      _isSearching = false; // 搜索框为空时，立即停止搜索
-      _showNoResultTip = false; // 搜索框为空，不显示“未找到结果”
-       _animationController.reverse();
+      _isSearching = true;
+      _showNoResultTip = false; // 开始搜索时，隐藏“未找到结果”
     });
-    return;
-  }
 
-  try {
-    final queryBuilder = Supabase.instance.client
-        .from('public_students') // 从视图查询
-        .select('name, student_id, class_name, school') // 选择需要的列
-        .ilike('name', '%$name%') // 模糊匹配姓名
-        .limit(20); // 限制结果数量
+    final name = _receiverNameController.text.trim();
 
-    final response = await queryBuilder.withConverter((data) => data.map((e) => e as Map<String, dynamic>).toList());
+    if (name.isEmpty) {
+      setState(() {
+        _searchResults = [];
+        _isSearching = false;
+        _showNoResultTip = false;
+        _animationController.reverse(); // 收起列表
+      });
+      return;
+    }
 
-    final highlightQuery = name.toLowerCase();
-    final List<Map<String, dynamic>> searchResults = response.map((user) {
-      return {
-        ...user,
-        'id': user['student_id'], // 使用 student_id 作为 id
-        'highlightedName': _highlightMatches(user['name'], highlightQuery),
-        'highlightedSubtitle': _highlightMatches(
-            '${user['school']} ${user['class_name']}', highlightQuery),
-      };
-    }).toList();
+    try {
+      final response = await _apiService.searchUsers(name);
 
-    setState(() {
-      _searchResults = searchResults;
-      _isSearching = false;
-      _showNoResultTip =
-          _searchResults.isEmpty; // 只有在搜索完成且结果为空时才显示
-       if (_searchResults.isNotEmpty) {
+      // 高亮匹配的文本
+      final highlightQuery = name.toLowerCase();
+      final List<Map<String, dynamic>> searchResults = response.map((user) {
+        return {
+          ...user,
+          'id': user['student_id'],
+          'highlightedName': _highlightMatches(user['name'], highlightQuery),
+          'highlightedSubtitle': _highlightMatches(
+              '${user['school']} ${user['class_name']}', highlightQuery),
+        };
+      }).toList();
+
+      setState(() {
+        _searchResults = searchResults;
+        _isSearching = false;
+        _showNoResultTip =
+            _searchResults.isEmpty; // 只有在搜索完成且结果为空时才显示
+        if (_searchResults.isNotEmpty) {
           _animationController.forward(); // 展开列表
         } else {
-          _animationController.reverse(); //收起列表
+          _animationController.reverse(); // 收起列表
         }
-    });
-
-  } on PostgrestException catch (e) {
-    _handleSearchError(e); // 统一的错误处理
-     setState(() {  // 在 catch 块中更新 UI
+      });
+    } catch (e) {
+      _handleSearchError(e); // 统一的错误处理
+      setState(() {
         _isSearching = false;
         _showNoResultTip = true;
-         _animationController.reverse();
+        _animationController.reverse(); // 收起列表
       });
-  } catch (e) {
-    _handleSearchError(e); // 统一的错误处理
-     setState(() { // 在 catch 块中更新 UI
-        _isSearching = false;
-         _showNoResultTip = true;
-         _animationController.reverse();
-      });
+    }
   }
-}
 
-  // 错误处理
-  void _handleSearchError(dynamic e) {
+   void _handleSearchError(dynamic e) {
     String message = '搜索失败，请稍后重试';
     if (e is String) {
       message = e;
-    } else if (e is PostgrestException) {
-      message = e.code == '42P01' ? '系统维护中，请联系管理员' : '查询超时';
     }
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text(message), backgroundColor: Colors.red),
-    );
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(message), backgroundColor: Colors.red),
+      );
+    }
   }
 
-  // 防抖搜索
+  // 防抖处理 (限制搜索频率)
   void _debounceSearch() {
     final currentSearchConditions = _receiverNameController.text.trim();
+    // 如果搜索条件没有变化，则不执行搜索
     if (currentSearchConditions == _lastSearchConditions) {
       return;
     }
-    _showNoResultTip = true;
-    _lastSearchConditions = currentSearchConditions;
+     _showNoResultTip = true;
+    _lastSearchConditions = currentSearchConditions; // 更新搜索条件
 
     _debounceTimer?.cancel();
     _debounceTimer = Timer(const Duration(milliseconds: 300), _searchUsers);
   }
 
+  // 高亮匹配的文本
   TextSpan _highlightMatches(String text, String query) {
     final spans = <TextSpan>[];
     int lastIndex = 0;
 
-    // 如果查询为空，直接返回原始文本
     if (query.isEmpty) {
       return TextSpan(text: text, style: TextStyle(color: Colors.grey[600]));
     }
 
-    // 使用正则表达式进行不区分大小写的匹配
     final regex = RegExp(RegExp.escape(query), caseSensitive: false);
     final matches = regex.allMatches(text);
 
     for (final match in matches) {
-      // 添加匹配之前的文本
       if (match.start > lastIndex) {
         spans.add(TextSpan(
           text: text.substring(lastIndex, match.start),
           style: TextStyle(color: Colors.grey[600]),
         ));
       }
-
-      // 添加匹配的文本，并高亮
       spans.add(TextSpan(
         text: text.substring(match.start, match.end),
         style: TextStyle(
-            color: Theme.of(context)
-                .textTheme
-                .bodyMedium
-                ?.color, // 使用当前主题的文本颜色
+            color: Theme.of(context).textTheme.bodyMedium?.color,
             fontWeight: FontWeight.bold),
       ));
-
       lastIndex = match.end;
     }
 
-    // 添加最后一个匹配项之后的文本
     if (lastIndex < text.length) {
       spans.add(TextSpan(
         text: text.substring(lastIndex),
@@ -324,6 +302,7 @@ class _SendLetterScreenState extends State<SendLetterScreen>
     return TextSpan(children: spans);
   }
 
+  // 确认模糊发送对话框
   Future<bool> _showConfirmationDialog() async {
     return await showDialog<bool>(
           context: context,
@@ -344,51 +323,56 @@ class _SendLetterScreenState extends State<SendLetterScreen>
             );
           },
         ) ??
-        false;
+        false; // 如果对话框被取消，返回 false
   }
 
   void _showErrorSnackBar(String message) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(message),
-        backgroundColor: Colors.red,
-      ),
-    );
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(message),
+          backgroundColor: Colors.red,
+        ),
+      );
+    }
   }
 
   void _showSuccessSnackBar(String message) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(message),
-        backgroundColor: Colors.green,
-      ),
-    );
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(message),
+          backgroundColor: Colors.green,
+        ),
+      );
+    }
   }
 
-  // 当点击搜索结果时，更新表单
+  // 处理搜索结果点击
   void _handleSearchResultTap(Map<String, dynamic> user) {
     setState(() {
       _isSearchResultSelected = true;
-      _selectedSearchResult = user;
+      _selectedSearchResult = user; // 保存选择的搜索结果
+
+      // 将搜索结果中的信息填充到输入框
       _receiverNameController.text = user['name'];
       _schoolController.text = user['school'];
-      _showNoResultTip = false;
-      _selectedSchool = user['school'];
 
-      final district = schoolList.entries
-          .firstWhere((element) => element.value.contains(user['school']))
-          .key;
+       // 找到 school 对应的 district
+      final district = schoolList.entries.firstWhere((element) => element.value.contains(user['school'])).key;
       _selectedDistrict = district;
 
+      _showNoResultTip = false;
+      _selectedSchool = user['school']; // 设置 _selectedSchool
       _isSpecificClass = true;
-      _selectedClassName = user['class_name'];
+      _selectedClassName = user['class_name']; // 设置班级名称, 即使用户没有选择年级和班级
 
-      _searchResults = [];
+      _searchResults = []; // 清空搜索结果
     });
     _animationController.reverse(); // 收起列表
   }
 
-// 取消搜索结果
+  // 取消搜索结果选择
   void _cancelSearchResult() {
     setState(() {
       _isSearchResultSelected = false;
@@ -396,16 +380,17 @@ class _SendLetterScreenState extends State<SendLetterScreen>
       _receiverNameController.clear();
       _schoolController.clear();
       _selectedSchool = null; // 清空 _selectedSchool
-      _selectedDistrict = null;
+      _selectedDistrict = null; // 清空区
       _selectedClassName = null;
       _selectedClassNumber = null;
       _selectedGrade = null;
-      _showNoResultTip = true; // 显示未找到结果的提示
+      _showNoResultTip =
+          true; // 显示未找到结果 (只有在输入框不为空的情况下)
       _isSpecificClass = false; // 重置为非具体目标
     });
   }
 
-  // AI 写作助手
+  // 打开 AI 写作助手
   Future<void> _openAIAssistedWriting(
       {String? initialText,
       AiAssistanceMode mode = AiAssistanceMode.generate}) async {
@@ -424,7 +409,6 @@ class _SendLetterScreenState extends State<SendLetterScreen>
     }
   }
 
-  @override
   @override
   Widget build(BuildContext context) {
     final isMobile = MediaQuery.of(context).size.width < 600;
@@ -447,13 +431,14 @@ class _SendLetterScreenState extends State<SendLetterScreen>
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
-                  // 收件人姓名输入框和搜索按钮
+                  // 收件人姓名输入框 和 搜索按钮
                   Row(
                     children: [
                       Expanded(
                         child: TextFormField(
                           controller: _receiverNameController,
-                          enabled: !_isSearchResultSelected,
+                          enabled:
+                              !_isSearchResultSelected, // 如果选择了搜索结果，禁用输入框
                           decoration: _inputDecoration(
                             labelText: '收件人姓名',
                             hintText: '请输入收件人姓名',
@@ -465,28 +450,31 @@ class _SendLetterScreenState extends State<SendLetterScreen>
                             return null;
                           },
                           onChanged: (value) {
+                            // 如果没有选择搜索结果，则执行搜索
                             if (!_isSearchResultSelected) {
-                              _debounceSearch();
+                              _debounceSearch(); // 防抖搜索
                             }
                           },
                         ),
                       ),
-                      // 搜索按钮
+                      // 搜索按钮 (加载时显示指示器)
                       AnimatedSwitcher(
                         duration: const Duration(milliseconds: 200),
                         child: _isSearching
                             ? Padding(
                                 padding: const EdgeInsets.all(12.0),
                                 child: const SizedBox(
-                                    height: 24,
-                                    width: 24,
-                                    child: CircularProgressIndicator(
-                                      strokeWidth: 3,
-                                    )),
+                                  height: 24,
+                                  width: 24,
+                                  child:
+                                      CircularProgressIndicator(strokeWidth: 3),
+                                ),
                               )
                             : InkWell(
-                                key: const ValueKey('search_icon'),
-                                onTap: _debounceSearch,
+                                key: const ValueKey(
+                                    'search_icon'), // 为了动画效果，添加 key
+                                onTap:
+                                    _debounceSearch, // 点击时触发 _debounceSearch (防抖)
                                 borderRadius: BorderRadius.circular(24),
                                 child: Padding(
                                   padding: const EdgeInsets.all(12),
@@ -498,14 +486,15 @@ class _SendLetterScreenState extends State<SendLetterScreen>
                     ],
                   ),
                   const SizedBox(height: 8),
-                  // 搜索结果列表
+
+                  // 搜索结果列表 (使用 AnimatedBuilder 实现动画)
                   AnimatedBuilder(
                     animation: _animation,
                     builder: (context, child) {
                       return ClipRect(
                         child: Align(
                           alignment: Alignment.topCenter,
-                          heightFactor: _animation.value,
+                          heightFactor: _animation.value, // 控制高度
                           child: child,
                         ),
                       );
@@ -522,22 +511,24 @@ class _SendLetterScreenState extends State<SendLetterScreen>
                                   color: Colors.grey.withOpacity(0.2),
                                   spreadRadius: 0,
                                   blurRadius: 4,
-                                  offset: const Offset(0, 2),
+                                  offset: const Offset(0, 2), // 阴影稍微向下偏移
                                 ),
                               ],
                             ),
                             child: ListView.builder(
-                              padding: EdgeInsets.zero,
-                              shrinkWrap: true,
+                              padding: EdgeInsets.zero, // 移除默认 padding
+                              shrinkWrap:
+                                  true, // 让 ListView 根据内容自适应高度 (重要，否则可能无法滚动)
                               physics:
-                                  const NeverScrollableScrollPhysics(),
+                                  const NeverScrollableScrollPhysics(), // 禁止 ListView 滚动
                               itemCount: _searchResults.length,
                               itemBuilder: (context, index) {
                                 final user = _searchResults[index];
                                 return AnimatedContainer(
                                   duration: const Duration(milliseconds: 200),
                                   curve: Curves.easeInOut,
-                                  color: _selectedSearchResult == user
+                                  color: _selectedSearchResult ==
+                                          user // 高亮选中的结果
                                       ? Colors.grey.withOpacity(0.2)
                                       : Colors.transparent,
                                   child: InkWell(
@@ -549,8 +540,9 @@ class _SendLetterScreenState extends State<SendLetterScreen>
                                           const EdgeInsets.symmetric(
                                               horizontal: 16, vertical: 8),
                                       leading: CircleAvatar(
-                                        radius: 18,
+                                        radius: 18, // 圆形头像
                                         child: Text(
+                                          // 显示名字的第一个字
                                           user['name'] != null &&
                                                   user['name'] is String &&
                                                   user['name'].isNotEmpty
@@ -559,6 +551,7 @@ class _SendLetterScreenState extends State<SendLetterScreen>
                                           style: const TextStyle(fontSize: 16),
                                         ),
                                       ),
+                                      // 使用 Text.rich 显示高亮文本
                                       title: Text.rich(user['highlightedName'],
                                           style:
                                               const TextStyle(fontSize: 16)),
@@ -574,7 +567,7 @@ class _SendLetterScreenState extends State<SendLetterScreen>
                             ),
                           )
                         : const SizedBox
-                            .shrink(), //  搜索结果为空时, AnimatedBuilder 的 child 是 SizedBox.shrink()
+                            .shrink(), // 如果搜索结果为空，则不显示任何内容 (高度为 0)
                   ),
 
                   // “未找到结果”提示 (放在 AnimatedBuilder 之外)
@@ -583,11 +576,11 @@ class _SendLetterScreenState extends State<SendLetterScreen>
                       _showNoResultTip)
                     AnimatedOpacity(
                       duration: const Duration(milliseconds: 300),
-                      opacity: _showNoResultTip ? 1.0 : 0.0,
+                      opacity: _showNoResultTip ? 1.0 : 0.0, // 控制透明度
                       child: Container(
-                        margin: const EdgeInsets.only(bottom: 8),
+                        margin: const EdgeInsets.only(bottom: 8), // 和其他组件的间距
                         decoration: BoxDecoration(
-                          color: Colors.amber[100],
+                          color: Colors.amber[100], // 使用浅黄色背景
                           borderRadius: BorderRadius.circular(12),
                           boxShadow: [
                             BoxShadow(
@@ -606,12 +599,12 @@ class _SendLetterScreenState extends State<SendLetterScreen>
                               style: TextStyle(color: Colors.black87)),
                           subtitle: Text(
                               '信件将暂存服务器，当对方注册时会自动送达',
-                              style: TextStyle(color: Colors.grey)),
+                              style: TextStyle(color: Colors.grey)), // 提示信息
                         ),
                       ),
                     ),
 
-                  // 搜索结果确认信息
+                  // 搜索结果确认信息 (使用 AnimatedOpacity 实现动画)
                   AnimatedOpacity(
                     duration: const Duration(milliseconds: 300),
                     opacity: _isSearchResultSelected ? 1.0 : 0.0,
@@ -636,7 +629,7 @@ class _SendLetterScreenState extends State<SendLetterScreen>
                                 style: TextStyle(
                                     color: Theme.of(context).colorScheme.primary,
                                     fontWeight: FontWeight.bold,
-                                    fontFamily: 'MiSans'),
+                                    fontFamily: 'MiSans'), // 可以自定义字体
                               ),
                               subtitle: Column(
                                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -658,6 +651,7 @@ class _SendLetterScreenState extends State<SendLetterScreen>
                                             .onSurface),
                                   ),
                                   Text(
+                                    // 使用 _selectedClassName
                                     '班级: $_selectedClassName',
                                     style: TextStyle(
                                         fontSize: 14,
@@ -675,8 +669,7 @@ class _SendLetterScreenState extends State<SendLetterScreen>
                   if (_isSearchResultSelected)
                     Align(
                       alignment: Alignment.centerRight,
-                      child: AnimatedOpacity(
-                        // 添加动画
+                      child: AnimatedOpacity( // 添加动画
                         duration: const Duration(milliseconds: 200),
                         opacity: _isSearchResultSelected ? 1.0 : 0.0,
                         child: TextButton(
@@ -698,7 +691,7 @@ class _SendLetterScreenState extends State<SendLetterScreen>
                             hintText: '请选择目标区',
                           ),
                           value: _selectedDistrict,
-                          items: schoolList.keys
+                          items: schoolList.keys // 从 school_data.dart 获取
                               .map((district) => DropdownMenuItem(
                                     value: district,
                                     child: Text(district),
@@ -712,7 +705,8 @@ class _SendLetterScreenState extends State<SendLetterScreen>
                               _isSpecificClass = false; // 重置为非具体班级
                               _showNoResultTip =
                                   false; // 选择区域后，隐藏“未找到结果”提示
-                              _selectedClassNumber = null;
+                              _selectedClassNumber =
+                                  null; // 当区更改时，重置班级数字
                               _selectedGrade = null;
                             });
                           },
@@ -737,7 +731,7 @@ class _SendLetterScreenState extends State<SendLetterScreen>
                                         child: Text(school),
                                       ))
                                   .toList()
-                              : [],
+                              : [], // 如果没有选择区，则显示空列表
                           onChanged: (value) {
                             setState(() {
                               _selectedSchool = value;
@@ -756,6 +750,7 @@ class _SendLetterScreenState extends State<SendLetterScreen>
                       ],
                     ),
                   const SizedBox(height: 12),
+
                   // 年级和班级选择, 只有在选择了区和学校，且没有选择搜索结果时才显示
                   if (!_isSearchResultSelected)
                     Row(
@@ -780,6 +775,8 @@ class _SendLetterScreenState extends State<SendLetterScreen>
                                 color: theme.colorScheme.onSurface)),
                       ],
                     ),
+
+                  // 年级和班级选择 (两个 Dropdown，水平排列)
                   if (_isSpecificClass && !_isSearchResultSelected)
                     Row(
                       children: [
@@ -795,7 +792,7 @@ class _SendLetterScreenState extends State<SendLetterScreen>
                               '高一',
                               '高二',
                               '高三',
-                            ]
+                            ] // 年级列表
                                 .map((grade) => DropdownMenuItem(
                                       value: grade,
                                       child: Text(grade),
@@ -817,7 +814,7 @@ class _SendLetterScreenState extends State<SendLetterScreen>
                             },
                           ),
                         ),
-                        const SizedBox(width: 16),
+                        const SizedBox(width: 16), // 年级和班级之间的间距
                         Expanded(
                           child: buildDropdownButtonFormField<String>(
                             labelText: '班级',
@@ -825,7 +822,8 @@ class _SendLetterScreenState extends State<SendLetterScreen>
                             value: _selectedClassNumber,
                             items: List.generate(50, (index) => index + 1)
                                 .map((classNum) => DropdownMenuItem(
-                                      value: '$classNum班', // 将班级数字转为字符串
+                                      value:
+                                          '$classNum班', // 将班级数字转为字符串, 和_selectedClassName 统一类型
                                       child: Text('$classNum班'),
                                     ))
                                 .toList(),
@@ -848,12 +846,12 @@ class _SendLetterScreenState extends State<SendLetterScreen>
 
                   const SizedBox(height: 12),
 
-                  // 添加：信件内容输入框
+                  // 信件内容输入框
                   buildTextFormField(
                     controller: _contentController,
                     labelText: '信件内容',
                     hintText: '请输入信件内容',
-                    maxLines: 10,
+                    maxLines: 10, // 多行文本框
                     validator: (value) {
                       if (value == null || value.isEmpty) {
                         return '请输入信件内容';
@@ -866,6 +864,8 @@ class _SendLetterScreenState extends State<SendLetterScreen>
                     },
                   ),
                   const SizedBox(height: 12),
+
+                  // 匿名发送
                   Row(
                     children: [
                       Checkbox(
@@ -881,9 +881,10 @@ class _SendLetterScreenState extends State<SendLetterScreen>
                               fontSize: 16, color: theme.colorScheme.onSurface)),
                     ],
                   ),
-                  const SizedBox(height: 12), // 匿名和 AI 按钮之间的间距
 
-                  // 修改：AI 助手按钮样式
+                  const SizedBox(height: 12),
+
+                  // AI 助手按钮 (使用 ElevatedButton)
                   ElevatedButton(
                     onPressed: () {
                       _openAIAssistedWriting(
@@ -895,44 +896,44 @@ class _SendLetterScreenState extends State<SendLetterScreen>
                     },
                     style: ElevatedButton.styleFrom(
                       backgroundColor:
-                          theme.colorScheme.surface, // 白色/浅色 背景, 和主题一致
+                          theme.colorScheme.surface, // 白色/浅色 背景
                       foregroundColor:
-                          theme.colorScheme.primary, // 蓝色文字, 和主题一致
+                          theme.colorScheme.primary, // 蓝色文字
                       padding: const EdgeInsets.symmetric(
-                          vertical: 10, horizontal: 24), // 调整 padding
+                          vertical: 10, horizontal: 24),
                       shape: RoundedRectangleBorder(
                           borderRadius: BorderRadius.circular(12),
                           side: BorderSide(
                               color: theme.colorScheme
-                                  .primary)), // 圆角边框和蓝色边框, 和主题一致
+                                  .primary)), // 圆角边框和蓝色边框
                       textStyle: const TextStyle(
                           fontSize: 16,
                           fontWeight: FontWeight.w500), // 设置文字样式
                       minimumSize:
-                          const Size(double.infinity, 40), // 修改：按钮最小尺寸
+                          const Size(double.infinity, 40), // 最小宽度为屏幕宽度
                     ),
                     child: Text(aiButtonText),
                   ),
 
                   const SizedBox(height: 20),
-                  // ** 恢复：发送按钮代码 **
+
+                  // 发送按钮 (使用 ElevatedButton)
                   ElevatedButton(
                     onPressed: _isLoading
-                        ? null
+                        ? null // 如果正在加载，禁用按钮
                         : _isSearchResultSelected
-                            ? _sendLetterWithSearchResult
-                            : _sendLetter,
+                            ? _sendLetterWithSearchResult // 如果选择了搜索结果，发送到搜索结果
+                            : _sendLetter, // 否则，正常发送
                     style: ElevatedButton.styleFrom(
-                      backgroundColor: theme.colorScheme.primary,
+                      backgroundColor: theme.colorScheme.primary, // 蓝色背景
                       padding: const EdgeInsets.symmetric(vertical: 12),
                       shape: RoundedRectangleBorder(
                           borderRadius: BorderRadius.circular(12)),
-                      minimumSize:
-                          const Size(double.infinity, 50), // 修改：发送按钮最小尺寸
+                      minimumSize: const Size(double.infinity, 50),
                     ),
                     child: _isLoading
                         ? const SizedBox(
-                            width: 24,
+                                                        width: 24,
                             height: 24,
                             child: CircularProgressIndicator(color: Colors.white),
                           )
@@ -949,6 +950,7 @@ class _SendLetterScreenState extends State<SendLetterScreen>
     );
   }
 
+  // 抽取 InputDecoration
   InputDecoration _inputDecoration({
     required String labelText,
     String? hintText,
@@ -959,12 +961,12 @@ class _SendLetterScreenState extends State<SendLetterScreen>
       hintText: hintText,
       filled: true,
       fillColor: theme.colorScheme.surfaceContainerHighest, // 使用更高级别的表面颜色
-      labelStyle: TextStyle(color: Colors.grey[600]),
-      hintStyle: TextStyle(color: Colors.grey[400]),
+      labelStyle: TextStyle(color: Colors.grey[600]), // 标签文本颜色
+      hintStyle: TextStyle(color: Colors.grey[400]), // 提示文本颜色
       contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
       border: OutlineInputBorder(
         borderRadius: BorderRadius.circular(12),
-        borderSide: BorderSide.none, // 移除默认边框
+        borderSide: BorderSide.none, // 移除默认边框,
       ),
       focusedBorder: OutlineInputBorder(
         // 设置焦点边框样式
@@ -974,7 +976,7 @@ class _SendLetterScreenState extends State<SendLetterScreen>
     );
   }
 
-  // 简化后的 buildTextFormField
+  // 抽取 TextFormField
   TextFormField buildTextFormField({
     required TextEditingController controller,
     required String labelText,
@@ -995,7 +997,7 @@ class _SendLetterScreenState extends State<SendLetterScreen>
     );
   }
 
-  // 简化后的 buildDropdownButtonFormField
+  // 抽取 DropdownButtonFormField
   DropdownButtonFormField<T> buildDropdownButtonFormField<T>({
     required String labelText,
     required String hintText,
@@ -1014,22 +1016,7 @@ class _SendLetterScreenState extends State<SendLetterScreen>
       onChanged: onChanged,
       validator: validator,
       borderRadius:
-          BorderRadius.circular(12), // 添加圆角    
+          BorderRadius.circular(12), // 添加圆角
     );
-  }
-
-  // *** 修改：从 public_students 视图查询 ***
-  Future<Map<String, dynamic>?> _fetchStudentData(
-      String studentId, String name) async {
-    final query = Supabase.instance.client
-        .from('public_students') // 从视图查询
-        .select('name, school, student_id') // 只选择需要的列
-        .eq('student_id', studentId)
-        .eq('name', name);
-    final response = await query;
-    if (response.isEmpty) {
-      return null;
-    }
-    return response[0];
   }
 }
