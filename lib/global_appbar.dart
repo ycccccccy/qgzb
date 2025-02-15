@@ -1,23 +1,37 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 
 class GlobalAppBar extends StatelessWidget implements PreferredSizeWidget {
   final String title;
   final bool showBackButton;
-  const GlobalAppBar({super.key, required this.title, this.showBackButton = false, required List<IconButton> actions});
+  final List<Widget> actions;
+
+  const GlobalAppBar({
+    Key? key,
+    required this.title,
+    this.showBackButton = false,
+    this.actions = const <Widget>[],
+  }) : super(key: key);
 
   @override
   Widget build(BuildContext context) {
-    return Row(
-      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-      children: [
-        showBackButton ? IconButton(
-          icon: const Icon(Icons.arrow_back, size: 30, color: Colors.black87),
-          onPressed: () => Navigator.pop(context),
-        ) : IconButton(
-          icon: const Icon(Icons.menu, size: 30, color: Colors.black87),
-          onPressed: () => Scaffold.of(context).openDrawer(),
-        ),
-        Text(
+    return SafeArea(
+      top: false, 
+      child: AppBar(
+        backgroundColor: Colors.transparent,
+        elevation: 0,
+        centerTitle: false,
+        leading: showBackButton
+            ? IconButton(
+                icon:
+                    const Icon(Icons.arrow_back, size: 30, color: Colors.black87),
+                onPressed: () => Navigator.pop(context),
+              )
+            : IconButton(
+                icon: const Icon(Icons.menu, size: 30, color: Colors.black87),
+                onPressed: () => Scaffold.of(context).openDrawer(),
+              ),
+        title: Text(
           title,
           style: const TextStyle(
             fontSize: 24,
@@ -25,11 +39,15 @@ class GlobalAppBar extends StatelessWidget implements PreferredSizeWidget {
             color: Colors.black87,
           ),
         ),
-        const SizedBox(width: 48),
-      ],
+        actions: actions,
+        systemOverlayStyle: const SystemUiOverlayStyle(
+          statusBarColor: Colors.transparent,
+          statusBarIconBrightness: Brightness.dark,
+        ),
+      ),
     );
   }
 
   @override
-  Size get preferredSize => const Size.fromHeight(kToolbarHeight);
+  Size get preferredSize => const Size.fromHeight(kToolbarHeight); // 使用标准高度
 }

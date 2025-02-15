@@ -1,23 +1,25 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_animate/flutter_animate.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'home_screen.dart';
 import 'global_appbar.dart';
 import 'settings_screen.dart';
 import 'contact_us_screen.dart';
+import 'package:flutter/services.dart';
 import 'login_screen.dart';
 import 'time_capsule_home.dart'; // 导入新的页面
 
 // 常量定义
-const double _buttonSpacing = 20.0;
-const double _iconSize = 60.0;
-const double _borderRadius = 10.0;
-const Color _textColor = Color(0xFF333333); // 深灰色
-const Color _greyColor = Color(0xFF888888); // 浅灰色
+const double _buttonSpacing = 25.0; // 按钮间距加大
+const double _iconSize = 65.0; // 图标尺寸加大
+const double _borderRadius = 16.0; // 圆角加大
+const Color _textColor = Color(0xFF34495E); // 深灰蓝色
+const Color _greyColor = Color(0xFF718096); // 灰蓝色
 const Color _whiteColor = Colors.white;
-const Color _backgroundGrey = Color(0xFFF5F5F5); // 浅灰色背景
-const double _buttonPadding = 16.0;
-const Color _primaryColor = Color(0xFF4A90E2); // 主题色，例如蓝色
-const double _cardElevation = 2.0; // 卡片阴影高度
+const Color _backgroundGrey = Color(0xFFF7FAFC); // 更浅的灰蓝色背景
+const double _buttonPadding = 20.0; // 按钮内边距加大
+const Color _primaryColor = Color(0xFF64B5F6); // 主题色 (浅蓝色)
+const double _cardElevation = 4.0; // 卡片阴影高度增加
 
 bool flg = false; // 全局变量，控制是否已登录, 放到文件开头
 
@@ -28,17 +30,40 @@ class HomeScreenMain extends StatefulWidget {
   _HomeScreenMainState createState() => _HomeScreenMainState();
 }
 
-class _HomeScreenMainState extends State<HomeScreenMain> {
+class _HomeScreenMainState extends State<HomeScreenMain>
+    with SingleTickerProviderStateMixin { // 添加动画支持
   int _selectedIndex = 0; // 当前选中的菜单项
   String _notificationText = '欢迎使用，开启你的跨校沟通之旅吧！'; // 通知文本
+
+  late AnimationController _controller; // 动画控制器
+  late Animation<double> _cardScaleAnimation;
 
   @override
   void initState() {
     super.initState();
     _loadNotificationText(); // 加载通知文本
     _checkFirstLaunch(); // 检查是否首次启动
-  }
+        // 初始化动画控制器
+    _controller = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 800), // 动画时间加长
+    );
 
+    _cardScaleAnimation = Tween<double>(begin: 0.8, end: 1.0).animate(
+      CurvedAnimation(
+        parent: _controller,
+        curve: Curves.easeInOut, // 使用更平滑的曲线
+      ),
+    );
+
+
+    _controller.forward(); // 启动动画
+  }
+@override
+  void dispose() {
+    _controller.dispose(); // 释放动画控制器
+    super.dispose();
+  }
   // 加载通知文本
   Future<void> _loadNotificationText() async {
     final prefs = await SharedPreferences.getInstance();
@@ -67,11 +92,21 @@ class _HomeScreenMainState extends State<HomeScreenMain> {
         context: context,
         builder: (BuildContext context) {
           return AlertDialog(
-            title: const Text('欢迎使用'),
-            content: const Text('欢迎来到鸿雁心笺！\n在这里你可以与远方的朋友们交流，传递心意。'),
+            backgroundColor: const Color(0xFFF5F7FA), // 更柔和的背景色
+            shape:
+                RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+            title: const Text(
+              '欢迎使用',
+              style: TextStyle(color: Color(0xFF34495E)), // 深灰蓝标题
+            ),
+            content: const Text(
+              '欢迎来到鸿雁心笺！\n在这里你可以与远方的朋友们交流，传递心意。',
+              style: TextStyle(color: Color(0xFF4A6572)),
+            ),
             actions: <Widget>[
               TextButton(
-                child: const Text('开始体验'),
+                child: const Text('开始体验',
+                    style: TextStyle(color: Color(0xFF3498DB))),
                 onPressed: () => Navigator.of(context).pop(),
               ),
             ],
@@ -99,7 +134,18 @@ class _HomeScreenMainState extends State<HomeScreenMain> {
                 showBackButton: false,
                 actions: [],
               ), // 自定义 AppBar
-              _buildNotificationCard(context), // 通知卡片
+              AnimatedBuilder(
+                // 使用 AnimatedBuilder
+                animation: _controller,
+                builder: (context, child) {
+                  return Transform.scale(
+                    scale: _cardScaleAnimation.value,
+                    child: child,
+                  );
+                },
+                child: _buildNotificationCard(context), // 通知卡片
+              ),
+
               Expanded(child: _buildMainContent(context)), // 主界面内容
             ],
           ),
@@ -111,9 +157,10 @@ class _HomeScreenMainState extends State<HomeScreenMain> {
   // 构建通知卡片
   Widget _buildNotificationCard(BuildContext context) {
     return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 8.0),
+      padding: const EdgeInsets.symmetric(vertical: 12.0), // 加大垂直间距
       child: Card(
         elevation: _cardElevation,
+        shadowColor: Colors.black26, // 更柔和的阴影颜色
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(_borderRadius),
         ),
@@ -123,12 +170,12 @@ class _HomeScreenMainState extends State<HomeScreenMain> {
           },
           borderRadius: BorderRadius.circular(_borderRadius),
           child: Padding(
-            padding: const EdgeInsets.all(16),
+            padding: const EdgeInsets.all(20), // 加大内边距
             child: Text(
               _notificationText,
               maxLines: 2,
               overflow: TextOverflow.ellipsis,
-              style: TextStyle(color: Colors.grey[700]),
+              style: const TextStyle(color: _greyColor, fontFamily: 'Montserrat'), // 使用 Montserrat 字体
             ),
           ),
         ),
@@ -142,11 +189,16 @@ class _HomeScreenMainState extends State<HomeScreenMain> {
       context: context,
       builder: (BuildContext context) {
         return AlertDialog(
-          title: const Text('通知'),
-          content: Text(_notificationText),
+          backgroundColor: const Color(0xFFF5F7FA), // 更柔和的背景色
+          shape:
+              RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+          title: const Text('通知', style: TextStyle(color: Color(0xFF34495E))),
+          content: Text(_notificationText,
+              style: const TextStyle(color: Color(0xFF4A6572))),
           actions: <Widget>[
             TextButton(
-              child: const Text('知道了'),
+              child: const Text('知道了',
+                  style: TextStyle(color: Color(0xFF3498DB))),
               onPressed: () => Navigator.of(context).pop(),
             ),
           ],
@@ -163,52 +215,77 @@ class _HomeScreenMainState extends State<HomeScreenMain> {
         child: ListView(
           padding: EdgeInsets.zero,
           children: [
-            const DrawerHeader(
-              decoration: BoxDecoration(
+            DrawerHeader(
+              decoration: const BoxDecoration(
                 color: Colors.transparent,
               ),
-              child: Text('菜单',
-                  style: TextStyle(fontSize: 24, color: _textColor)),
+              child: Text(
+                '菜单',
+                style: TextStyle(
+                  fontSize: 26, // 更大的字体
+                  color: _textColor,
+                  fontFamily: 'Montserrat',
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
             ),
             ListTile(
-              leading:
-                  const Icon(Icons.home, color: _textColor, semanticLabel: "主页"),
-              title: const Text('主页', style: TextStyle(color: _textColor)),
+              leading: const Icon(Icons.home_outlined,
+                  color: _textColor, semanticLabel: "主页"), // 使用轮廓图标
+              title: const Text('主页',
+                  style: TextStyle(color: _textColor, fontFamily: 'Montserrat')),
               selected: _selectedIndex == 0,
               selectedTileColor: _primaryColor.withOpacity(0.1),
               onTap: () {
                 _updateSelectedIndex(0); // 更新选中项
                 Navigator.pop(context); // 关闭侧边栏
               },
-            ),
+            )
+                .animate(target: _selectedIndex == 0 ? 1 : 0) // 根据选中状态添加动画
+                .scaleXY(begin: 0.95, end: 1, curve: Curves.easeInOut),
             ListTile(
-              leading: const Icon(Icons.settings,
+              leading: const Icon(Icons.settings_outlined,
                   color: _textColor, semanticLabel: "设置"),
-              title: const Text('设置', style: TextStyle(color: _textColor)),
+              title: const Text('设置',
+                  style: TextStyle(color: _textColor, fontFamily: 'Montserrat')),
               selected: _selectedIndex == 1,
               selectedTileColor: _primaryColor.withOpacity(0.1),
               onTap: () {
                 _updateSelectedIndex(1);
-                Navigator.push(context,
-                    _createPageRoute(() => const SettingsScreen())); // 导航到设置页
+                Navigator.push(
+                  context,
+                  _createPageRoute(
+                    () => const SettingsScreen(),
+                  ),
+                ); // 导航到设置页
               },
-            ),
+            )
+                .animate(target: _selectedIndex == 1 ? 1 : 0)
+                .scaleXY(begin: 0.95, end: 1, curve: Curves.easeInOut),
             ListTile(
               leading: const Icon(Icons.mail_outline,
                   color: _textColor, semanticLabel: "关于我们"),
-              title: const Text('关于我们', style: TextStyle(color: _textColor)),
+              title: const Text('关于我们',
+                  style: TextStyle(color: _textColor, fontFamily: 'Montserrat')),
               selected: _selectedIndex == 2,
               selectedTileColor: _primaryColor.withOpacity(0.1),
               onTap: () {
                 _updateSelectedIndex(2);
-                Navigator.push(context,
-                    _createPageRoute(() => const ContactUsScreen())); // 导航到关于我们页
+                Navigator.push(
+                  context,
+                  _createPageRoute(
+                    () => const ContactUsScreen(),
+                  ),
+                ); // 导航到关于我们页
               },
-            ),
+            )
+                .animate(target: _selectedIndex == 2 ? 1 : 0)
+                .scaleXY(begin: 0.95, end: 1, curve: Curves.easeInOut),
             ListTile(
-              leading:
-                  const Icon(Icons.logout, color: _textColor, semanticLabel: "登出"),
-              title: const Text('登出', style: TextStyle(color: _textColor)),
+              leading: const Icon(Icons.logout_outlined,
+                  color: _textColor, semanticLabel: "登出"),
+              title: const Text('登出',
+                  style: TextStyle(color: _textColor, fontFamily: 'Montserrat')),
               selected: _selectedIndex == 3,
               selectedTileColor: _primaryColor.withOpacity(0.1),
               onTap: () {
@@ -226,7 +303,9 @@ class _HomeScreenMainState extends State<HomeScreenMain> {
                   _createPageRoute(() => const LoginScreen()),
                 );
               },
-            ),
+            )
+                .animate(target: _selectedIndex == 3 ? 1 : 0)
+                .scaleXY(begin: 0.95, end: 1, curve: Curves.easeInOut),
           ],
         ),
       ),
@@ -271,8 +350,9 @@ class _HomeScreenMainState extends State<HomeScreenMain> {
         spacing: _buttonSpacing,
         runSpacing: _buttonSpacing,
         children: [
+          // 第一个按钮
           SizedBox(
-            width: 280,
+            width: 300, // 按钮宽度加大
             child: CustomButton(
               imagePath: 'assets/images/custom_icon1.png', // 图片路径
               topText: '写封信给Ta',
@@ -281,12 +361,21 @@ class _HomeScreenMainState extends State<HomeScreenMain> {
               dialogContent: '', // 不需要弹窗，设置为空
               onPressed: () {
                 Navigator.push(
-                    context, _createPageRoute(() => const HomeScreen())); // 导航到写信页
+                  context,
+                  _createPageRoute(
+                    () => const HomeScreen(),
+                  ),
+                ); // 导航到写信页
               },
             ),
-          ),
+          )
+              .animate()
+              .fade(duration: 600.ms)
+              .slideX(begin: -0.3, end: 0, curve: Curves.easeOut),
+
+          // 第二个按钮
           SizedBox(
-            width: 280,
+            width: 300,
             child: CustomButton(
               imagePath: 'assets/images/custom_icon2.png', // 图片路径
               topText: '时空胶囊',
@@ -295,14 +384,25 @@ class _HomeScreenMainState extends State<HomeScreenMain> {
               dialogTitle: '确认跳转',
               dialogContent: '此功能仅限初三、高三学生使用',
               onPressed: () {
-                _showConfirmDialog(context, '确认跳转',
-                    '此功能仅限初三、高三学生使用', () {
-                  Navigator.push(context,
-                      _createPageRoute(() => const TimeCapsuleHome())); // 导航到时空胶囊页
-                });
+                _showConfirmDialog(
+                  context,
+                  '确认跳转',
+                  '此功能仅限初三、高三学生使用',
+                  () {
+                    Navigator.push(
+                      context,
+                      _createPageRoute(
+                        () => const TimeCapsuleHome(),
+                      ),
+                    ); // 导航到时空胶囊页
+                  },
+                );
               },
             ),
-          ),
+          )
+              .animate()
+              .fade(duration: 600.ms)
+              .slideX(begin: 0.3, end: 0, curve: Curves.easeOut),
         ],
       ),
     );
@@ -351,10 +451,15 @@ class CustomButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+  SystemChrome.setSystemUIOverlayStyle(const SystemUiOverlayStyle(
+      systemNavigationBarColor: Color(0xFFF7FAFC), //  ✅  全局设置导航栏透明
+      systemNavigationBarIconBrightness: Brightness.light, //  ✅  全局设置导航栏图标颜色
+    ));
     return Material(
+      
       color: Colors.transparent,
       elevation: _cardElevation,
-      shadowColor: _greyColor.withOpacity(0.3),
+      shadowColor: const Color(0xFF64B5F6).withOpacity(0.4), // 阴影颜色
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(_borderRadius),
       ),
@@ -362,6 +467,14 @@ class CustomButton extends StatelessWidget {
         decoration: BoxDecoration(
           color: _whiteColor,
           borderRadius: BorderRadius.circular(_borderRadius),
+          boxShadow: [
+            BoxShadow(
+              color: const Color(0xFF64B5F6).withOpacity(0.4),
+              spreadRadius: 1,
+              blurRadius: 10,
+              offset: const Offset(0, 4),
+            ),
+          ],
         ),
         child: InkWell(
           onTap: () {
@@ -389,19 +502,22 @@ class CustomButton extends StatelessWidget {
                     size: _iconSize,
                     color: _textColor,
                   ),
-                const SizedBox(height: 8.0),
+                const SizedBox(height: 12.0), // 加大间距
                 Text(
                   topText,
                   style: const TextStyle(
-                      fontSize: 16.0,
-                      color: _textColor,
-                      fontWeight: FontWeight.w500),
+                    fontSize: 18.0, // 更大的字体
+                    color: _textColor,
+                    fontWeight: FontWeight.w600, // 更粗的字体
+                    fontFamily: 'Montserrat',
+                  ),
                   textAlign: TextAlign.center,
                 ),
-                const SizedBox(height: 4.0),
+                const SizedBox(height: 6.0), // 加大间距
                 Text(
                   bottomText,
-                  style: const TextStyle(fontSize: 14.0, color: _greyColor),
+                  style: const TextStyle(
+                      fontSize: 15.0, color: _greyColor, fontFamily: 'Montserrat'), // 使用 Montserrat 字体
                   maxLines: 3,
                   overflow: TextOverflow.ellipsis,
                   textAlign: TextAlign.center,
@@ -422,15 +538,19 @@ void _showConfirmDialog(
     context: context,
     builder: (BuildContext context) {
       return AlertDialog(
-        title: Text(title),
-        content: Text(content),
+        backgroundColor: const Color(0xFFF5F7FA), // 更柔和的背景色
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: Text(title, style: const TextStyle(color: Color(0xFF34495E))),
+        content:
+            Text(content, style: const TextStyle(color: Color(0xFF4A6572))),
         actions: <Widget>[
           TextButton(
-            child: const Text('取消'),
+            child:
+                const Text('取消', style: TextStyle(color: Color(0xFF718096))),
             onPressed: () => Navigator.of(context).pop(),
           ),
           TextButton(
-            child: const Text('确认'),
+            child: const Text('确认', style: TextStyle(color: Color(0xFF3498DB))),
             onPressed: () {
               Navigator.of(context).pop(); // 关闭对话框
               onConfirm(); // 执行确认操作

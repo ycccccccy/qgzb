@@ -1,4 +1,4 @@
-package com.example.qgzb
+package com.hyxj.hyxj
 
 import io.flutter.embedding.android.FlutterActivity
 

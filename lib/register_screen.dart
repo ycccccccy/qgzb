@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter_animate/flutter_animate.dart';
 import 'api_service.dart'; // 导入 ApiService
 import 'school_data.dart'; // 假设你有这个文件，包含学校数据
 import 'login_screen.dart';
@@ -11,7 +12,8 @@ class RegisterScreen extends StatefulWidget {
   _RegisterScreenState createState() => _RegisterScreenState();
 }
 
-class _RegisterScreenState extends State<RegisterScreen> {
+class _RegisterScreenState extends State<RegisterScreen>
+    with SingleTickerProviderStateMixin {
   final _formKey = GlobalKey<FormState>();
   final TextEditingController _emailController = TextEditingController();
   final TextEditingController _studentIdController = TextEditingController();
@@ -24,9 +26,44 @@ class _RegisterScreenState extends State<RegisterScreen> {
   int? _selectedClass;
   String? _selectedClassName; // 拼接后的班级名称，例如 "高一1班"
   String? _selectedDistrict; // 区
-  String? _selectedSchool;   // 学校
+  String? _selectedSchool; // 学校
 
   final _apiService = ApiService(); // 使用 ApiService
+
+  late AnimationController _controller; // 动画控制器
+  late Animation<double> _cardScaleAnimation;
+  late Animation<Offset> _cardSlideAnimation;
+
+  @override
+  void initState() {
+    super.initState();
+
+// 初始化动画控制器
+    _controller = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 800), //动画时长增加
+    );
+
+    _cardScaleAnimation = Tween<double>(begin: 0.8, end: 1.0).animate(
+      CurvedAnimation(
+        parent: _controller,
+        curve: Curves.easeInOut,
+      ),
+    );
+
+    _cardSlideAnimation = Tween<Offset>(
+      //卡片入场动画
+      begin: const Offset(0, 0.3), // 从下方30%的位置开始
+      end: Offset.zero,
+    ).animate(
+      CurvedAnimation(
+        parent: _controller,
+        curve: Curves.easeOut, // 使用缓出效果
+      ),
+    );
+
+    _controller.forward(); // 启动动画
+  }
 
   @override
   void dispose() {
@@ -34,14 +71,15 @@ class _RegisterScreenState extends State<RegisterScreen> {
     _studentIdController.dispose();
     _nameController.dispose();
     _passwordController.dispose();
+    _controller.dispose(); // 释放动画控制器
     super.dispose();
   }
 
-  // 更新 _selectedClassName
+// 更新 _selectedClassName
   void _updateClassValue() {
     if (_selectedGrade != null && _selectedClass != null) {
       setState(() {
-        _selectedClassName = '$_selectedGrade${_selectedClass}班';
+        _selectedClassName = '$_selectedGrade$_selectedClass班';
       });
     } else {
       setState(() {
@@ -50,8 +88,8 @@ class _RegisterScreenState extends State<RegisterScreen> {
     }
   }
 
-  // 处理注册按钮点击
-    Future<void> _handleRegister() async {
+// 处理注册按钮点击
+  Future<void> _handleRegister() async {
     if (!_formKey.currentState!.validate() || !_canRegister) {
       return; // 表单验证失败或正在注册中，直接返回
     }
@@ -64,13 +102,13 @@ class _RegisterScreenState extends State<RegisterScreen> {
     final email = _emailController.text.trim();
     final studentId = _studentIdController.text.trim();
     final name = _nameController.text.trim();
-    final school = _selectedSchool!;  // 非空断言，因为如果表单验证通过，这些值一定不为空
+    final school = _selectedSchool!; // 非空断言，因为如果表单验证通过，这些值一定不为空
     final className = _selectedClassName!;
     final password = _passwordController.text;
 
     try {
       // 调用 ApiService 的 registerStep1 方法
-      await _apiService.registerStep1(
+      await _apiService.registerStep1(  //  添加 await
         email: email,
         studentId: studentId,
         name: name,
@@ -95,11 +133,13 @@ class _RegisterScreenState extends State<RegisterScreen> {
       if (mounted) {
         _showErrorSnackBar(e.toString()); // 显示详细的错误信息
       }
-      _resetRegisterState(); // 重置注册状态
+
+    } finally {  // 使用 finally 确保状态重置
+        _resetRegisterState();
     }
   }
 
-  // 显示邮箱验证对话框, 移除所有与本地哈希相关的代码
+// 显示邮箱验证对话框, 移除所有与本地哈希相关的代码
   void _showEmailVerificationDialog(
     BuildContext context,
     String email,
@@ -111,55 +151,69 @@ class _RegisterScreenState extends State<RegisterScreen> {
     final TextEditingController verificationCodeController =
         TextEditingController();
     bool shouldNavigate = false; // 标记是否应该导航到登录页
-    String? verificationToken;    // 存储验证 token
+    String? verificationToken; // 存储验证 token
 
     showDialog(
       context: context,
       barrierDismissible: false, // 点击对话框外部不会关闭
       builder: (BuildContext dialogContext) {
         return AlertDialog(
-          title: const Text('邮箱验证'),
+          backgroundColor: const Color(0xFFF5F7FA), // 更柔和的背景色
+          shape:
+              RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+          title: const Text(
+            '邮箱验证',
+            style: TextStyle(color: Color(0xFF34495E)), // 深灰蓝标题
+          ),
           content: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              const Text('请输入发送到你邮箱的验证码'),
+              const Text('请输入发送到你邮箱的验证码',
+                  style: TextStyle(color: Color(0xFF4A6572))), // 灰蓝色内容
               const SizedBox(height: 16),
               TextField(
                 controller: verificationCodeController,
                 keyboardType: TextInputType.number,
-                decoration: const InputDecoration(
+                decoration: InputDecoration(
                   labelText: '验证码',
                   hintText: '请输入验证码',
-                  border: OutlineInputBorder(),
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(12), // 圆角边框
+                  ),
+                  filled: true,
+                  fillColor: Colors.white, // 白色填充
                 ),
               ),
             ],
           ),
           actions: <Widget>[
             TextButton(
-              child: const Text('取消'),
+              child:
+                  const Text('取消', style: TextStyle(color: Color(0xFF718096))),
               onPressed: () {
                 Navigator.of(dialogContext).pop(); // 关闭对话框
                 _resetRegisterState(); // 重置注册状态
               },
             ),
             TextButton(
-              child: const Text('验证'),
+              child: const Text('验证',
+                  style: TextStyle(color: Color(0xFF3498DB))),
               onPressed: () async {
                 final code = verificationCodeController.text.trim();
                 if (code.isEmpty) {
-                  if (mounted) _showErrorSnackBar('请输入验证码');
+                  if (mounted)
+                    _showErrorSnackBar('请输入验证码'); // 使用统一的错误提示方法
                   return;
                 }
 
                 try {
                   // 调用 ApiService 的 verifyEmailCode 方法, 获取验证token
                   verificationToken =
-                      await _apiService.verifyEmailCode(email, code);
+                      await _apiService.verifyEmailCode(email, code); // 添加 await
 
                   if (verificationToken != null) {
                     // 验证码正确, 调用 ApiService 的 createUser 方法, 传递验证 token
-                    await _apiService.createUser(
+                    await _apiService.createUser(   //  添加 await
                       email: email,
                       studentId: studentId,
                       name: name,
@@ -170,7 +224,8 @@ class _RegisterScreenState extends State<RegisterScreen> {
                     );
 
                     shouldNavigate = true; // 标记需要导航
-                    if (mounted) _showSuccessSnackBar('注册成功！');
+                    if (mounted) _showSuccessSnackBar('注册成功！'); // 使用统一的成功提示方法
+
                   }
                 } catch (e) {
                   // 验证码错误 或 创建用户失败
@@ -178,9 +233,8 @@ class _RegisterScreenState extends State<RegisterScreen> {
                     _showErrorSnackBar(e.toString()); // 显示详细错误信息
                   }
                 }
-
-                if (mounted) {
-                  Navigator.of(dialogContext).pop(); // 关闭对话框
+                if(mounted){
+                Navigator.of(dialogContext).pop(); // 关闭对话框
                 }
                 _resetRegisterState(); // 重置注册状态
               },
@@ -198,7 +252,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
     });
   }
 
-  // 显示错误消息
+// 显示错误消息
   void _showErrorSnackBar(String message) {
     if (mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -210,7 +264,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
     }
   }
 
-  // 显示成功消息
+// 显示成功消息
   void _showSuccessSnackBar(String message) {
     if (mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -222,7 +276,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
     }
   }
 
-  // 重置注册状态 (可以注册、按钮可用)
+// 重置注册状态 (可以注册、按钮可用)
   void _resetRegisterState() {
     if (mounted) {
       setState(() {
@@ -232,17 +286,17 @@ class _RegisterScreenState extends State<RegisterScreen> {
     }
   }
 
-  // 构建文本输入框 (可以提取成一个独立的 Widget)
-  TextFormField buildTextFormField({
+// 构建文本输入框 (提取成一个独立的 Widget)
+  Widget _buildTextFormField({
     required TextEditingController controller,
     required String labelText,
     required String hintText,
-    IconData? prefixIcon,
+    required IconData prefixIcon,
     TextInputType? keyboardType,
     List<TextInputFormatter>? inputFormatters,
-    bool obscureText = false, // 是否隐藏文本 (用于密码框)
-    IconButton? suffixIcon, // 尾部图标 (用于密码可见性切换)
-    String? Function(String?)? validator, // 验证函数
+    bool obscureText = false,
+    Widget? suffixIcon,
+    String? Function(String?)? validator,
   }) {
     return TextFormField(
       controller: controller,
@@ -252,327 +306,442 @@ class _RegisterScreenState extends State<RegisterScreen> {
       decoration: InputDecoration(
         labelText: labelText,
         hintText: hintText,
-        prefixIcon: prefixIcon != null ? Icon(prefixIcon) : null,
+        prefixIcon: Icon(prefixIcon, color: const Color(0xFF64B5F6)),
         suffixIcon: suffixIcon,
         filled: true,
-        fillColor: Colors.white,
+        fillColor: const Color(0xFFF7FAFC),
         border: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(8),
-          borderSide: BorderSide.none, // 不要边框线
+          borderRadius: BorderRadius.circular(18),
+          borderSide: BorderSide.none,
         ),
+        focusedBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(18),
+          borderSide: const BorderSide(color: Color(0xFF64B5F6), width: 2.5),
+        ),
+        labelStyle: TextStyle(
+          color: controller.text.isNotEmpty
+              ? const Color(0xFF64B5F6)
+              : const Color(0xFF718096),
+
+        ),
+        hintStyle: const TextStyle(color: Color(0xFFB0BEC5)),
       ),
       validator: validator,
-    );
+    ).animate().fade(duration: 400.ms).slideX(
+        //动画时间增加
+        begin: -0.3,
+        end: 0,
+        curve: Curves.easeOut,
+        duration: 400.ms);
+  }
+
+// 构建下拉菜单 (提取成一个独立的 Widget)
+  Widget _buildDropdownFormField<T>({
+    required String labelText,
+    required String hintText,
+    required List<DropdownMenuItem<T>> items,
+    required T? value,
+    required void Function(T?)? onChanged,
+    String? Function(T?)? validator,
+  }) {
+    return DropdownButtonFormField<T>(
+      decoration: InputDecoration(
+        labelText: labelText,
+        hintText: hintText,
+        filled: true,
+        fillColor: const Color(0xFFF7FAFC),
+        border: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(18),
+          borderSide: BorderSide.none,
+        ),
+        focusedBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(18),
+          borderSide: const BorderSide(color: Color(0xFF64B5F6), width: 2.5),
+        ),
+        labelStyle: TextStyle(
+          color:
+              value != null ? const Color(0xFF64B5F6) : const Color(0xFF718096),
+        ),
+        hintStyle: const TextStyle(color: Color(0xFFB0BEC5)),
+      ),
+      value: value,
+      items: items,
+      onChanged: onChanged,
+      validator: validator,
+    ).animate().fade(duration: 400.ms).slideX(
+        //动画时间增加
+        begin: -0.3,
+        end: 0,
+        curve: Curves.easeOut,
+        duration: 400.ms,
+      );
   }
 
   @override
   Widget build(BuildContext context) {
     final screenWidth = MediaQuery.of(context).size.width;
-    final isMobile = screenWidth < 600; // 假设小于 600 宽度认为是移动设备
+    final maxWidth = screenWidth > 600 ? 500.0 : double.infinity;
+    SystemChrome.setSystemUIOverlayStyle(const SystemUiOverlayStyle(
+      systemNavigationBarColor: Color(0xFF90CAF9), //  ✅  全局设置导航栏透明
+      systemNavigationBarIconBrightness: Brightness.light, //  ✅  全局设置导航栏图标颜色
+    ));
 
     return Scaffold(
-      backgroundColor: Colors.grey[100],
-      body: Center(
-        child: SingleChildScrollView(
-          padding: EdgeInsets.all(isMobile ? 20 : 40), // 根据是否为移动设备调整边距
-          child: Card(
-            elevation: 4,
-            color: Colors.grey[50],
-            shape:
-                RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-            child: Padding(
-              padding: EdgeInsets.all(isMobile ? 20 : 40),
-              child: Form(
-                key: _formKey,
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: [
-                    const Text(
-                      '注册',
-                      style: TextStyle(
-                          fontSize: 24,
-                          fontWeight: FontWeight.bold,
-                          color: Colors.blue),
-                      textAlign: TextAlign.center,
+      body: Container(
+        decoration: const BoxDecoration(
+          gradient: LinearGradient(
+            begin: Alignment.topCenter,
+            end: Alignment.bottomCenter,
+            colors: [
+              Color(0xFFC5E1F5), // 轻柔的天蓝色
+              Color(0xFF90CAF9), // 柔和的浅蓝色
+            ],
+          ),
+        ),
+        child: Center(
+          child: SingleChildScrollView(
+            padding: const EdgeInsets.all(20),
+            child: Container(
+              constraints: BoxConstraints(maxWidth: maxWidth), // 关键：限制最大宽度
+              child: AnimatedBuilder(
+                animation: _controller,
+                builder: (context, child) {
+                  return Transform.scale(
+                    scale: _cardScaleAnimation.value,
+                    child: SlideTransition(
+                      // 使用 SlideTransition
+                      position: _cardSlideAnimation,
+                      child: child,
                     ),
-                    const SizedBox(height: 20),
-                    // 邮箱
-                    buildTextFormField(
-                      controller: _emailController,
-                      labelText: '邮箱',
-                      hintText: '请输入你的邮箱',
-                      prefixIcon: Icons.email,
-                      keyboardType: TextInputType.emailAddress,
-                      validator: (value) {
-                        if (value == null || value.isEmpty) {
-                          return '邮箱不能为空';
-                        }
-                        // 简单的邮箱格式验证 (可以根据需要调整)
-                        if (!RegExp(r'^[\w-\.]+@([\w-]+\.)+[\w-]{2,4}$')
-                            .hasMatch(value)) {
-                          return '邮箱格式不正确';
-                        }
-                        return null;
-                      },
-                    ),
-                    const SizedBox(height: 16),
-                    // 学号
-                    buildTextFormField(
-                      controller: _studentIdController,
-                      labelText: '学号',
-                      hintText: '请输入你的学号',
-                      prefixIcon: Icons.school,
-                      keyboardType: TextInputType.number, // 限制为数字键盘
-                      inputFormatters: <TextInputFormatter>[
-                        FilteringTextInputFormatter.digitsOnly // 只允许输入数字
-                      ],
-                      validator: (value) {
-                        if (value == null || value.isEmpty) {
-                          return '学号不能为空';
-                        }
-                        return null;
-                      },
-                    ),
-                    const SizedBox(height: 16),
-                    // 姓名
-                    buildTextFormField(
-                      controller: _nameController,
-                      labelText: '姓名',
-                      hintText: '请输入你的姓名',
-                      prefixIcon: Icons.person,
-                      validator: (value) {
-                        if (value == null || value.isEmpty) {
-                          return '姓名不能为空';
-                        }
-                        return null;
-                      },
-                    ),
-                    const SizedBox(height: 16),
-
-                    // 区 (Dropdown)
-                    DropdownButtonFormField<String>(
-                      decoration: InputDecoration(
-                        labelText: '区',
-                        hintText: '请选择区',
-                        filled: true,
-                        fillColor: Colors.white,
-                        border: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(8),
-                          borderSide: BorderSide.none,
-                        ),
-                      ),
-                      value: _selectedDistrict,
-                      items: schoolList.keys // 从 school_data.dart 获取区列表
-                          .map((district) => DropdownMenuItem(
-                                value: district,
-                                child: Text(district),
-                              ))
-                          .toList(),
-                      onChanged: (value) {
-                        // 当区改变时，重置学校、年级、班级
-                        setState(() {
-                          _selectedDistrict = value;
-                          _selectedSchool = null; // 清空学校
-                          _selectedGrade = null;
-                          _selectedClass = null;
-                          _updateClassValue(); // 更新班级名称
-                        });
-                      },
-                      validator: (value) {
-                        if (value == null || value.isEmpty) {
-                          return '请选择区';
-                        }
-                        return null;
-                      },
-                    ),
-                    const SizedBox(height: 16),
-
-                    // 学校 (Dropdown)
-                    DropdownButtonFormField<String>(
-                      decoration: InputDecoration(
-                        labelText: '学校',
-                        hintText: '请选择学校',
-                        filled: true,
-                        fillColor: Colors.white,
-                        border: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(8),
-                          borderSide: BorderSide.none,
-                        ),
-                      ),
-                      value: _selectedSchool,
-                      // 根据选择的区显示学校列表
-                      items: _selectedDistrict != null
-                          ? schoolList[_selectedDistrict]
-                              ?.map((school) => DropdownMenuItem(
-                                    value: school,
-                                    child: Text(school),
-                                  ))
-                              .toList()
-                          : [], // 如果没有选择区，则显示空列表
-                      onChanged: (value) {
-                        // 当学校改变时，重置年级、班级
-                        setState(() {
-                          _selectedSchool = value;
-                          _selectedGrade = null;
-                          _selectedClass = null;
-                          _updateClassValue();
-                        });
-                      },
-                      validator: (value) {
-                        if (value == null || value.isEmpty) {
-                          return '请选择学校';
-                        }
-                        return null;
-                      },
-                    ),
-                    const SizedBox(height: 16),
-
-                    // 年级和班级 (两个 Dropdown，水平排列)
-                    Row(
-                      children: [
-                        Expanded(
-                          child: DropdownButtonFormField<String>(
-                            decoration: InputDecoration(
-                              labelText: '年级',
-                              hintText: '请选择年级',
-                              filled: true,
-                              fillColor: Colors.white,
-                              border: OutlineInputBorder(
-                                borderRadius: BorderRadius.circular(8),
-                                borderSide: BorderSide.none,
-                              ),
+                  );
+                },
+                child: Card(
+                  // 3. Card 在 AnimatedBuilder 内部
+                  elevation: 10, // 增加阴影深度
+                  shadowColor: Colors.black26, // 更柔和的阴影颜色
+                  shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(28)), // 更圆润的边角
+                  child: Padding(
+                    padding: const EdgeInsets.all(32),
+                    child: Form(
+                      key: _formKey,
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        children: [
+                          // 标题
+                          const SizedBox(height: 32),
+                          Text(
+                            '注册',
+                            style: TextStyle(
+                              fontSize: 36, // 更大的字体
+                              fontWeight: FontWeight.w700, // 更粗的字体
+                              color: const Color(0xFF34495E), // 深灰蓝色，更沉稳
+                              letterSpacing: 1.5, // 字母间距更宽
+                              fontFamily: 'Montserrat', // 使用更现代的字体
                             ),
-                            value: _selectedGrade,
-                            items: [
-                              '初一',
-                              '初二',
-                              '初三',
-                              '高一',
-                              '高二',
-                              '高三',
-                            ] // 年级列表
-                                .map((grade) => DropdownMenuItem(
-                                      value: grade,
-                                      child: Text(grade),
-                                    ))
-                                .toList(),
-                            onChanged: (value) {
-                              // 当年级改变时，重置班级
-                              setState(() {
-                                _selectedGrade = value;
-                                _selectedClass = null; // 清空班级
-                                _updateClassValue();
-                              });
-                            },
-                            validator: (value) {
-                              if (value == null || value.isEmpty) {
-                                return '请选择年级';
-                              }
-                              return null;
-                            },
-                          ),
-                        ),
-                        const SizedBox(width: 16), // 年级和班级之间的间距
-                        Expanded(
-                          child: DropdownButtonFormField<int>(
-                            decoration: InputDecoration(
-                              labelText: '班级',
-                              hintText: '请选择班级',
-                              filled: true,
-                              fillColor: Colors.white,
-                              border: OutlineInputBorder(
-                                borderRadius: BorderRadius.circular(8),
-                                borderSide: BorderSide.none,
+                            textAlign: TextAlign.center,
+                          )
+                              .animate()
+                              .fade(duration: 600.ms)
+                              .slideY(
+                                begin: -0.6, // 更大的滑动距离
+                                end: 0,
+                                curve: Curves.easeOut,
+                                duration: 600.ms,
                               ),
-                            ),
-                            value: _selectedClass,
-                            // 生成 1 到 50 的班级列表 (你可以根据实际情况调整)
-                            items: List.generate(50, (index) => index + 1)
-                                .map((classNum) => DropdownMenuItem(
-                                      value: classNum,
-                                      child: Text('$classNum班'),
-                                    ))
-                                .toList(),
-                            onChanged: (value) {
-                              setState(() {
-                                _selectedClass = value;
-                                _updateClassValue(); // 更新班级名称
-                              });
-                            },
-                            validator: (value) {
-                              if (value == null) {
-                                return '请选择班级';
-                              }
-                              return null;
-                            },
-                          ),
-                        ),
-                      ],
-                    ),
+                          const SizedBox(height: 48),
 
-                    const SizedBox(height: 16),
-                    // 密码
-                    buildTextFormField(
-                      controller: _passwordController,
-                      labelText: '密码',
-                      hintText: '请输入你的密码',
-                      prefixIcon: Icons.lock,
-                      obscureText: !_passwordVisible, // 根据 _passwordVisible 切换可见性
-                      suffixIcon: IconButton(
-                        icon: Icon(_passwordVisible
-                            ? Icons.visibility
-                            : Icons.visibility_off),
-                        onPressed: () {
-                          setState(() {
-                            _passwordVisible = !_passwordVisible; // 切换可见性
-                          });
+                          // 邮箱
+                                                // ... (之前的代码)
+                      // 邮箱
+                      _buildTextFormField(
+                        controller: _emailController,
+                        labelText: '邮箱',
+                        hintText: '请输入你的邮箱',
+                        prefixIcon: Icons.email_outlined,
+                        keyboardType: TextInputType.emailAddress,
+                        validator: (value) {
+                          if (value == null || value.isEmpty) {
+                            return '邮箱不能为空';
+                          }
+                          if (!RegExp(r'^[\w-\.]+@([\w-]+\.)+[\w-]{2,4}$')
+                              .hasMatch(value)) {
+                            return '邮箱格式不正确';
+                          }
+                          return null;
                         },
                       ),
-                      validator: (value) {
-                        if (value == null || value.isEmpty) {
-                          return '密码不能为空';
-                        }
-                        if (value.length < 6) {
-                          return '密码长度至少为6位';
-                        }
-                        return null;
-                      },
-                    ),
-                    const SizedBox(height: 24),
+                      const SizedBox(height: 28),
 
-                    // 注册按钮
-                    ElevatedButton(
-                      onPressed: _isLoading
-                          ? null
-                          : _handleRegister, // 如果正在加载，禁用按钮
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: Colors.blue,
-                        padding: const EdgeInsets.symmetric(vertical: 14),
-                        shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(8)),
+                      // 学号
+                      _buildTextFormField(
+                        controller: _studentIdController,
+                        labelText: '学号',
+                        hintText: '请输入你的学号',
+                        prefixIcon: Icons.school_outlined,
+                        keyboardType: TextInputType.number,
+                        inputFormatters: <TextInputFormatter>[
+                          FilteringTextInputFormatter.digitsOnly
+                        ],
+                        validator: (value) {
+                          if (value == null || value.isEmpty) {
+                            return '学号不能为空';
+                          }
+                          return null;
+                        },
                       ),
-                      child: _isLoading
-                          ? const CircularProgressIndicator(color: Colors.white)
-                          : const Text('注册',
-                              style: TextStyle(
-                                  fontSize: 18, color: Colors.white)), // 如果正在加载,显示指示器
-                    ),
-                    const SizedBox(height: 10),
+                      const SizedBox(height: 28),
 
-                    // 登录链接
-                    TextButton(
-                      onPressed: () {
-                        Navigator.push(
-                          context,
-                          MaterialPageRoute(
-                              builder: (context) => const LoginScreen()),
-                        );
-                      },
-                      child: const Text('已有账号？去登录。',
-                          style: TextStyle(color: Colors.blueGrey)),
+                      // 姓名
+                      _buildTextFormField(
+                        controller: _nameController,
+                        labelText: '姓名',
+                        hintText: '请输入你的姓名',
+                        prefixIcon: Icons.person_outline,
+                        validator: (value) {
+                          if (value == null || value.isEmpty) {
+                            return '姓名不能为空';
+                          }
+                          return null;
+                        },
+                      ),
+                      const SizedBox(height: 28),
+
+                      // 区 (Dropdown)
+                      _buildDropdownFormField<String>(
+                        labelText: '区',
+                        hintText: '请选择区',
+                        value: _selectedDistrict,
+                        items: schoolList.keys
+                            .map((district) => DropdownMenuItem(
+                                  value: district,
+                                  child: Text(district),
+                                ))
+                            .toList(),
+                        onChanged: (value) {
+                          setState(() {
+                            _selectedDistrict = value;
+                            _selectedSchool = null;
+                            _selectedGrade = null;
+                            _selectedClass = null;
+                            _updateClassValue();
+                          });
+                        },
+                        validator: (value) {
+                          if (value == null || value.isEmpty) {
+                            return '请选择区';
+                          }
+                          return null;
+                        },
+                      ),
+                      const SizedBox(height: 28),
+
+                      // 学校 (Dropdown)
+                      _buildDropdownFormField<String>(
+                        labelText: '学校',
+                        hintText: '请选择学校',
+                        value: _selectedSchool,
+                        items: (_selectedDistrict != null
+                                ? (schoolList[_selectedDistrict!]
+                                    ?.map((school) => DropdownMenuItem(
+                                          value: school,
+                                          child: Text(school),
+                                        ))
+                                    .toList())
+                                : []) ??
+                            [],
+                        onChanged: (value) {
+                          setState(() {
+                            _selectedSchool = value;
+                            _selectedGrade = null;
+                            _selectedClass = null;
+                            _updateClassValue();
+                          });
+                        },
+                        validator: (value) {
+                          if (value == null || value.isEmpty) {
+                            return '请选择学校';
+                          }
+                          return null;
+                        },
+                      ),
+                      const SizedBox(height: 28),
+
+                      // 年级和班级 (两个 Dropdown，水平排列)
+                      Row(
+                        children: [
+                          Expanded(
+                            child: _buildDropdownFormField<String>(
+                              labelText: '年级',
+                              hintText: '请选择年级',
+                              value: _selectedGrade,
+                              items: [
+                                '初一',
+                                '初二',
+                                '初三',
+                                '高一',
+                                '高二',
+                                '高三',
+                              ].map((grade) => DropdownMenuItem(
+                                    value: grade,
+                                    child: Text(grade),
+                                  ))
+                                  .toList(),
+                              onChanged: (value) {
+                                setState(() {
+                                  _selectedGrade = value;
+                                  _selectedClass = null;
+                                  _updateClassValue();
+                                });
+                              },
+                              validator: (value) {
+                                if (value == null || value.isEmpty) {
+                                  return '请选择年级';
+                                }
+                                return null;
+                              },
+                            ),
+                          ),
+                          const SizedBox(width: 16),
+                          Expanded(
+                            child: _buildDropdownFormField<int>(
+                              labelText: '班级',
+                              hintText: '请选择班级',
+                              value: _selectedClass,
+                              items: List.generate(50, (index) => index + 1)
+                                  .map((classNum) => DropdownMenuItem(
+                                        value: classNum,
+                                        child: Text('$classNum班'),
+                                      ))
+                                  .toList(),
+                              onChanged: (value) {
+                                setState(() {
+                                  _selectedClass = value;
+                                  _updateClassValue();
+                                });
+                              },
+                              validator: (value) {
+                                if (value == null) {
+                                  return '请选择班级';
+                                }
+                                return null;
+                              },
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 28),
+
+                      // 密码
+                      _buildTextFormField(
+                        controller: _passwordController,
+                        labelText: '密码',
+                        hintText: '请输入你的密码',
+                        prefixIcon: Icons.lock_outline,
+                        obscureText: !_passwordVisible,
+                        suffixIcon: IconButton(
+                          icon: Icon(
+                            _passwordVisible
+                                ? Icons.visibility_outlined
+                                : Icons.visibility_off_outlined,
+                            color: const Color(0xFF64B5F6),
+                          ),
+                          onPressed: () {
+                            setState(() {
+                              _passwordVisible = !_passwordVisible;
+                            });
+                          },
+                        ),
+                        validator: (value) {
+                          if (value == null || value.isEmpty) {
+                            return '密码不能为空';
+                          }
+                          if (value.length < 6) {
+                            return '密码长度至少为6位';
+                          }
+                          return null;
+                        },
+                      ),
+                      const SizedBox(height: 36),
+
+                      // 注册按钮 (使用渐变色)
+                      Container(
+                        decoration: BoxDecoration(
+                          borderRadius: BorderRadius.circular(20), // 更圆润的按钮
+                          boxShadow: [
+                            BoxShadow(
+                              color: const Color(0xFF64B5F6).withOpacity(0.4), // 阴影颜色
+                              spreadRadius: 1,
+                              blurRadius: 10,
+                              offset: const Offset(0, 4), // 阴影偏移
+                            ),
+                          ],
+                          gradient: const LinearGradient(
+                            colors: [
+                              Color(0xFF90CAF9), // 浅蓝色
+                              Color(0xFF64B5F6), // 较深的蓝色
+                            ],
+                            begin: Alignment.topLeft,
+                            end: Alignment.bottomRight,
+                          ),
+                        ),
+                        child: ElevatedButton(
+                          onPressed: _isLoading ? null : _handleRegister,
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: Colors.transparent,
+                            padding:
+                                const EdgeInsets.symmetric(vertical: 20),
+                            shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(20)),
+                            shadowColor: Colors.transparent,
+                            elevation: 0,
+                          ),
+                          child: _isLoading
+                              ? const CircularProgressIndicator(
+                                  color: Colors.white)
+                              : const Text(
+                                  '注册',
+                                  style: TextStyle(
+                                    fontSize: 22, // 更大的字体
+                                    color: Colors.white,
+                                    fontWeight: FontWeight.bold,
+                                    fontFamily: 'Montserrat',
+                                  ),
+                                ),
+                        ),
+                      )
+                          .animate(target: _isLoading ? 0 : 1)
+                          .scaleXY(
+                              begin: 0.95,
+                              end: 1,
+                              curve: Curves.easeInOut,
+                              duration: 300.ms),
+
+                      const SizedBox(height: 24),
+
+                      // 登录链接
+                      TextButton(
+                        onPressed: () {
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                                builder: (context) => const LoginScreen()),
+                          );
+                        },
+                        child: const Text(
+                          '已有账号？去登录',
+                          style: TextStyle(
+                            color: Color(0xFF64B5F6),
+                            fontWeight: FontWeight.w600,
+                            fontFamily: 'Montserrat',
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
                     ),
-                  ],
+                  ),
                 ),
               ),
             ),

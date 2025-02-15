@@ -1,14 +1,28 @@
-//home_screen.dart
 import 'dart:async';
+import 'dart:convert';
 import 'dart:ui';
 import 'package:flutter/material.dart';
-import 'api_service.dart'; // 导入 api_service.dart
+import 'package:http/http.dart' as http;
+import 'package:shared_preferences/shared_preferences.dart';
+import 'api_service.dart';
 import 'models.dart';
 import 'send_letter_screen.dart';
 import 'received_letter_screen.dart';
 import 'sent_letters_screen.dart';
 import 'settings_screen.dart';
 import 'global_appbar.dart';
+
+// 常量
+const Color _primaryColor = Color(0xFF64B5F6);
+const Color _textColor = Color(0xFF34495E);
+const Color _greyColor = Color(0xFF718096);
+const Color _backgroundColor = Color(0xFFF7FAFC); // 浅蓝灰色背景
+const Color _whiteColor = Color(0xFFFFFFFF); // 白色
+const double _cardBorderRadius = 16.0; // 增加圆角半径
+const double _horizontalPadding = 20.0; // 水平内边距
+
+// SharedPreferences 键
+const String _rememberedNameKey = 'rememberedName';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({Key? key}) : super(key: key);
@@ -18,17 +32,21 @@ class HomeScreen extends StatefulWidget {
 }
 
 class _HomeScreenState extends State<HomeScreen> {
-  final double _cardBorderRadius = 8.0;
-  int _selectedIndex = 0;
-  ApiService? _apiService; // 使用 ApiService
+  final int _selectedIndex = 0;
+  ApiService? _apiService;
   DataService? _dataService;
+  String _userName = '';
+  String _userGreeting = '';
+  String _oneWord = ''; // 一言
 
   @override
   void initState() {
     super.initState();
-    _apiService = ApiService(); // 直接创建 ApiService 实例
+    _apiService = ApiService();
     _dataService = DataService(apiService: _apiService!);
     _dataService?.loadInitialData();
+    _loadUserData();
+    _fetchOneWord();
   }
 
   @override
@@ -37,126 +55,111 @@ class _HomeScreenState extends State<HomeScreen> {
     super.dispose();
   }
 
-    @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: Colors.white,
-      appBar: null, // 隐藏默认的 AppBar
-      drawer: _buildDrawer(),
-      body: SafeArea(
-        child: _buildMainContent(context),
-      ),
-    );
-  }
-
-  Widget _buildDrawer() {
-    return Drawer(
-      child: Stack(
-        children: [
-          BackdropFilter(
-            filter: ImageFilter.blur(sigmaX: 5.0, sigmaY: 5.0),
-            child: Container(
-              color: Colors.white.withOpacity(0.8),
-            ),
-          ),
-          ListView(
-            padding: EdgeInsets.zero,
-            children: [
-              const DrawerHeader(
-                decoration: BoxDecoration(
-                  color: Colors.transparent, // 透明背景
-                ),
-                child: Text(
-                  '菜单',
-                  style: TextStyle(fontSize: 24, color: Colors.black87),
-                ),
-              ),
-              _buildDrawerItem(
-                icon: Icons.home,
-                title: '主页',
-                index: 0,
-                onTap: () {
-                  _updateSelectedIndex(0);
-                  Navigator.pop(context); // 关闭抽屉
-                },
-              ),
-              _buildDrawerItem(
-                icon: Icons.mail,
-                title: '写信',
-                index: 1,
-                onTap: () {
-                  _updateSelectedIndex(1);
-                  Navigator.pop(context);
-                  Navigator.of(context).push(MaterialPageRoute(
-                      builder: (_) => const SendLetterScreen()));
-                },
-              ),
-              _buildDrawerItem(
-                icon: Icons.settings,
-                title: '设置',
-                index: 2,
-                onTap: () {
-                  _updateSelectedIndex(2);
-                  Navigator.pop(context);
-                  Navigator.of(context).push(MaterialPageRoute(
-                      builder: (_) => const SettingsScreen()));
-                },
-              ),
-            ],
-          ),
-        ],
-      ),
-    );
-  }
-
-    Widget _buildDrawerItem({
-    required IconData icon,
-    required String title,
-    required int index,
-    required VoidCallback onTap,
-  }) {
-    return ListTile(
-      leading: Icon(icon, color: Colors.black87),
-      title: Text(title, style: const TextStyle(color: Colors.black87)),
-      selected: _selectedIndex == index,
-      onTap: onTap,
-    );
-  }
-
-  void _updateSelectedIndex(int index) {
+  Future<void> _loadUserData() async {
+    final prefs = await SharedPreferences.getInstance();
     setState(() {
-      _selectedIndex = index;
+      _userName = prefs.getString(_rememberedNameKey) ?? '用户';
+      _userGreeting = _getGreeting();
     });
   }
-    Widget _buildMainContent(BuildContext context) {
-    final screenWidth = MediaQuery.of(context).size.width;
-    final isMobile =
-        screenWidth < 600; // 假设小于 600 宽度认为是移动设备，你可以根据需要调整
 
-    return Padding(
-      padding: EdgeInsets.all(isMobile ? 16 : 32), // 根据是否为移动设备调整边距
-      child: Column(
-        children: [
-          const GlobalAppBar(title: '我的应用', showBackButton: true, actions: []),
-          const SizedBox(height: 16),
-          Expanded(
-            child:  _dataService != null
-                    ? (_selectedIndex == 0
-                        ? _buildDashboardView(context)
-                        : _selectedIndex == 1
-                            ? Container() // 占位符，根据需要替换
-                            : _selectedIndex == 2
-                                ? Container() // 占位符，根据需要替换
-                                : Container())
-                    : const Center(child: CircularProgressIndicator())
-          ),
-        ],
+  String _getGreeting() {
+    final hour = DateTime.now().hour;
+    if (hour >= 5 && hour < 11) {
+      return '早上好';
+    } else if (hour >= 11 && hour < 13) {
+      return '中午好';
+    } else if (hour >= 13 && hour < 18) {
+      return '下午好';
+    } else {
+      return '晚上好';
+    }
+  }
+
+  Future<void> _fetchOneWord() async {
+    try {
+      final response =
+          await http.get(Uri.parse('https://v1.hitokoto.cn/?encode=json'));
+      if (response.statusCode == 200) {
+        final data = jsonDecode(response.body);
+        setState(() {
+          _oneWord = data['hitokoto'];
+        });
+      } else {
+        setState(() {
+          _oneWord = '获取一言失败';
+        });
+      }
+    } catch (e) {
+      setState(() {
+        _oneWord = '获取一言失败';
+      });
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: _backgroundColor,
+      appBar: null,
+      extendBody: true,
+      body: SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.only(
+              top: 16.0, left: _horizontalPadding, right: _horizontalPadding),
+          child: _buildMainContent(context),
+        ),
       ),
+    );
+  }
+
+  Widget _buildMainContent(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const GlobalAppBar(title: '写信', showBackButton: true, actions: []),
+        const SizedBox(height: 20),
+        Padding(
+          padding: const EdgeInsets.only(left: 4.0),
+          child: Text(
+            '$_userGreeting，$_userName',
+            style: const TextStyle(
+              fontSize: 24,
+              fontWeight: FontWeight.bold,
+              color: _textColor,
+               fontFamily: 'Montserrat', // 保留您原来的字体
+            ),
+          ),
+        ),
+        const SizedBox(height: 24),
+
+        Expanded(
+            child: _dataService != null
+                ? (_selectedIndex == 0
+                    ? _buildDashboardView(context)
+                    : Container())
+                : const Center(child: CircularProgressIndicator())),
+
+        // 一言 (居中)
+        Padding(
+          padding: const EdgeInsets.symmetric(vertical: 12.0),
+          child: Center(
+            child: Text(
+              _oneWord,
+              style: TextStyle(
+                color: Colors.grey[600],
+                fontStyle: FontStyle.italic,
+                fontSize: 15,
+              ),
+            ),
+          ),
+        ),
+      ],
     );
   }
 
   Widget _buildDashboardView(BuildContext context) {
-    return Column(
+    return ListView(
       children: [
         _buildDashboardCard(
           context,
@@ -165,9 +168,11 @@ class _HomeScreenState extends State<HomeScreen> {
           valueNotifier: _dataService!.receivedLetterCountNotifier,
           onTap: () {
             Navigator.push(
-                context,
-                MaterialPageRoute(
-                    builder: (_) => const ReceivedLetterScreen()));
+              context,
+              MaterialPageRoute(
+                builder: (context) => const ReceivedLetterScreen(), // 修正导航
+              ),
+            );
           },
         ),
         _buildDashboardCard(
@@ -177,76 +182,31 @@ class _HomeScreenState extends State<HomeScreen> {
           valueNotifier: _dataService!.sentLetterCountNotifier,
           onTap: () {
             Navigator.push(
-                context,
-                MaterialPageRoute(builder: (_) => const SentLettersScreen()));
+              context,
+              MaterialPageRoute(
+                builder: (context) => const SentLettersScreen(), // 修正导航
+              ),
+            );
           },
         ),
         _buildDashboardCard(
           context,
           icon: Icons.edit_outlined,
           title: '发送信件',
-          valueNotifier: ValueNotifier(''), // 发送信件卡片不需要 ValueNotifier
+          valueNotifier: ValueNotifier(''),
           onTap: () {
-            Navigator.push(context,
-                MaterialPageRoute(builder: (_) => const SendLetterScreen()));
+            Navigator.push(
+              context,
+              MaterialPageRoute(
+                builder: (context) => const SendLetterScreen(), // 修正导航
+              ),
+            );
           },
         ),
-        _buildContactsCard(context), // 最近联系人
+        _buildContactsCard(context),
       ],
     );
   }
-
-    Widget _buildContactsCard(BuildContext context) {
-    return Card(
-      elevation: 1, // 卡片阴影
-      margin: const EdgeInsets.symmetric(vertical: 8),
-      shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(_cardBorderRadius)),
-      color: Colors.grey[50],
-      child: Padding(
-        padding: const EdgeInsets.all(16.0),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                const Text(
-                  '常用联系人',
-                  style: TextStyle(
-                      fontSize: 16,
-                      fontWeight: FontWeight.bold,
-                      color: Colors.black87),
-                ),
-                Icon(Icons.group_outlined, size: 20, color: Colors.grey[700]),
-              ],
-            ),
-            const SizedBox(height: 10),
-            ValueListenableBuilder<List<String>>(
-              valueListenable: _dataService!.recentContactsNotifier,
-              builder: (context, contacts, _) {
-                if (contacts.isEmpty) {
-                  return Text('无常用联系人',
-                      style: TextStyle(color: Colors.grey[500])); // 提示信息
-                }
-                return Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: contacts
-                      .map((name) => Padding(
-                            padding: const EdgeInsets.symmetric(vertical: 4.0),
-                            child: Text(name,
-                                style: TextStyle(color: Colors.grey[700])),
-                          ))
-                      .toList(),
-                );
-              },
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
   Widget _buildDashboardCard(
     BuildContext context, {
     required IconData icon,
@@ -255,19 +215,21 @@ class _HomeScreenState extends State<HomeScreen> {
     required VoidCallback onTap,
   }) {
     return Card(
-      elevation: 1,
+      elevation: 1.5,
+      shadowColor: Colors.black.withOpacity(0.5),
       margin: const EdgeInsets.symmetric(vertical: 8),
       shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(_cardBorderRadius)),
-      color: Colors.grey[50], // 卡片背景色
+      color: _whiteColor,
       child: InkWell(
         onTap: onTap,
+        borderRadius: BorderRadius.circular(_cardBorderRadius),
         child: Padding(
-          padding: const EdgeInsets.all(16.0),
+          padding: const EdgeInsets.fromLTRB(16, 12, 16, 12), // 微调内边距
           child: Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              Icon(icon, size: 24, color: Colors.blue), // 卡片图标
+              Icon(icon, size: 26, color: _primaryColor), // 增大图标尺寸
               const SizedBox(width: 12),
               Expanded(
                 child: Column(
@@ -276,9 +238,10 @@ class _HomeScreenState extends State<HomeScreen> {
                     Text(
                       title,
                       style: const TextStyle(
-                          fontSize: 16,
-                          fontWeight: FontWeight.w500,
-                          color: Colors.black87),
+                        fontSize: 17, // 稍微增大字号
+                        fontWeight: FontWeight.w600, // 使用半粗体
+                        color: _textColor,
+                      ),
                     ),
                     const SizedBox(height: 4),
                     ValueListenableBuilder(
@@ -286,8 +249,10 @@ class _HomeScreenState extends State<HomeScreen> {
                       builder: (context, value, _) {
                         return Text(
                           value.toString(),
-                          style:
-                              TextStyle(fontSize: 18, color: Colors.grey[700]),
+                          style: const TextStyle(
+                            fontSize: 18,
+                            color: _greyColor,
+                          ),
                         );
                       },
                     ),
@@ -300,10 +265,65 @@ class _HomeScreenState extends State<HomeScreen> {
       ),
     );
   }
+
+  Widget _buildContactsCard(BuildContext context) {
+    return Card(
+      elevation: 1.5,
+      shadowColor: Colors.black.withOpacity(0.5),
+      margin: const EdgeInsets.symmetric(vertical: 8),
+      shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(_cardBorderRadius)),
+      color: _whiteColor,
+      child: Padding(
+        padding: const EdgeInsets.all(16.0),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              crossAxisAlignment: CrossAxisAlignment.center, // 垂直居中对齐
+              children: [
+                const Text(
+                  '常用联系人',
+                  style: TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.bold,
+                    color: _textColor,
+                  ),
+                ),
+                const Icon(Icons.group_outlined, size: 20, color: _greyColor),
+              ],
+            ),
+            const SizedBox(height: 10),
+            ValueListenableBuilder<List<String>>(
+              valueListenable: _dataService!.recentContactsNotifier,
+              builder: (context, contacts, _) {
+                if (contacts.isEmpty) {
+                  return Text('无常用联系人',
+                      style: TextStyle(color: Colors.grey[600])); // 加深颜色
+                }
+                return Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: contacts
+                      .map((name) => Padding(
+                            padding: const EdgeInsets.symmetric(vertical: 4.0),
+                            child: Text(name,
+                                style: TextStyle(
+                                    color: Colors.grey[700], fontSize: 15)),
+                          ))
+                      .toList(),
+                );
+              },
+            ),
+          ],
+        ),
+      ),
+    );
+  }
 }
 
 class DataService {
-  final ApiService apiService; // 使用 ApiService
+  final ApiService apiService;
   final receivedLetterCountNotifier = ValueNotifier<int>(0);
   final sentLetterCountNotifier = ValueNotifier<int>(0);
   final recentContactsNotifier = ValueNotifier<List<String>>([]);
@@ -313,53 +333,48 @@ class DataService {
   Future<void> loadInitialData() async {
     await _fetchSentLetterCount();
     await _fetchRecentContacts();
-     await _fetchReceivedLetters();  // 获取收件箱
+    await _fetchReceivedLetters();
   }
 
-    void dispose() {
+  void dispose() {
     receivedLetterCountNotifier.dispose();
     sentLetterCountNotifier.dispose();
     recentContactsNotifier.dispose();
   }
 
- List<Letter> _receivedLetters = [];
+  List<Letter> _receivedLetters = [];
 
   Future<void> _fetchReceivedLetters() async {
     try {
-
-        final letters = await apiService.getReceivedLetters(); // 使用 apiService
-        _receivedLetters = letters;
-        _updateReceivedLetterCount();
-
+      final letters =
+          await apiService.getReceivedLetters(); // 假设你有这个方法
+      _receivedLetters = letters;
+      _updateReceivedLetterCount();
     } catch (e) {
-       receivedLetterCountNotifier.value = 0;
+      receivedLetterCountNotifier.value = 0;
     }
   }
 
-// 更新收件箱数量 (所有收到的信件，不再需要检查 isRead)
   void _updateReceivedLetterCount() {
     receivedLetterCountNotifier.value = _receivedLetters.length;
   }
 
   Future<void> _fetchSentLetterCount() async {
     try {
-
-        final letters = await apiService.getSentLetters(); // 使用 apiService
-        sentLetterCountNotifier.value = letters.length;
-
+      final letters = await apiService.getSentLetters(); // 假设你有这个方法
+      sentLetterCountNotifier.value = letters.length;
     } catch (e) {
-      sentLetterCountNotifier.value = 0; // 设置初始值
+      sentLetterCountNotifier.value = 0;
     }
   }
 
   Future<void> _fetchRecentContacts() async {
     try {
-
-        final contacts = await apiService.getRecentContacts(); // 使用 apiService
-        recentContactsNotifier.value = contacts;
-
+      final contacts =
+          await apiService.getRecentContacts(); // 假设你有这个方法
+      recentContactsNotifier.value = contacts;
     } catch (e) {
-      recentContactsNotifier.value = []; // 设置初始值
+      recentContactsNotifier.value = [];
     }
   }
 }

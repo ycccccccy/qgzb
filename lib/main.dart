@@ -1,37 +1,19 @@
 import 'package:flutter/material.dart';
-import 'package:supabase_flutter/supabase_flutter.dart';
 import 'login_screen.dart';
-import 'package:shared_preferences/shared_preferences.dart';
+import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import 'user_data.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
-  await Supabase.initialize(
-    url: 'https://bydbvhsknggjkyifhywq.supabase.co',
-    anonKey: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImJ5ZGJ2aHNrbmdnamt5aWZoeXdxIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Mjk5OTY0ODIsImV4cCI6MjA0NTU3MjQ4Mn0.ojALKrXWOJE3z0-WwObcg9p3wPHNgEddGy0nIWoXbdk',
-  );
-
-  Supabase.instance.client.auth.onAuthStateChange.listen((event) async {
-    final AuthChangeEvent eventType = event.event;
-    final prefs = await SharedPreferences.getInstance();
-    if (eventType == AuthChangeEvent.signedOut) {
-      final userData = UserData();
-      userData.clear();
-      await prefs.remove('current_user_id');
-      await prefs.remove('rememberedName');
-      await prefs.remove('rememberedId');
-    } else if (eventType == AuthChangeEvent.signedIn ||
-        eventType == AuthChangeEvent.tokenRefreshed) {
-      final user = Supabase.instance.client.auth.currentUser;
-      if (user != null) {
-        await prefs.setString('current_user_id', user.id);
-        await prefs.setString('rememberedName', user.userMetadata?['name'] as String? ?? '');
-        await prefs.setString('rememberedId', user.userMetadata?['student_id'] as String? ?? '');
-      }
-    }
-  });
+  SystemChrome.setSystemUIOverlayStyle(const SystemUiOverlayStyle(
+    statusBarColor: Colors.transparent, // 状态栏透明
+    statusBarIconBrightness: Brightness.dark, // 根据背景颜色调整图标亮度
+    statusBarBrightness: Brightness.light, // 根据背景颜色调整 (iOS)
+    systemNavigationBarColor: Color(0xFFF7FAFC), //  ✅  导航栏颜色
+    systemNavigationBarIconBrightness: Brightness.light, //  ✅  导航栏图标颜色
+  ));
 
   runApp(
     ChangeNotifierProvider(
@@ -42,7 +24,7 @@ void main() async {
 }
 
 class MyApp extends StatelessWidget {
-  const MyApp({Key? key});
+   const MyApp({Key? key}) : super(key: key);
 
   @override
   Widget build(BuildContext context) {
@@ -50,16 +32,27 @@ class MyApp extends StatelessWidget {
       title: '鸿雁心笺',
       theme: ThemeData(
         colorScheme: ColorScheme.fromSwatch(primarySwatch: Colors.blue).copyWith(
-          primary: Colors.blue,
-          onPrimary: Colors.white,
+          primary: Colors.blue, // 主色
+          onPrimary: Colors.white, // 主色上的文本颜色
         ),
         appBarTheme: const AppBarTheme(
-          backgroundColor: Colors.white,
-          titleTextStyle: TextStyle(color: Colors.black87, fontFamily: 'MiSans'),
+          backgroundColor: Colors.white, // AppBar 背景色
+          titleTextStyle:
+              TextStyle(color: Colors.black87, fontFamily: 'MiSans'),
           iconTheme: IconThemeData(color: Colors.black87),
           elevation: 1,
         ),
         fontFamily: 'MiSans',
+        elevatedButtonTheme: ElevatedButtonThemeData(
+          style: ElevatedButton.styleFrom(
+            backgroundColor: Colors.blue, // 按钮背景色
+            foregroundColor: Colors.white, // 按钮文本颜色
+          ),
+        ),
+        textButtonTheme: TextButtonThemeData(
+            style: TextButton.styleFrom(
+          foregroundColor: Colors.blue,
+        )),
       ),
       home: const LoginScreen(),
     );
