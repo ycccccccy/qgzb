@@ -320,8 +320,8 @@ class ApiService {
     }
   }
 
-  // 检查 AI 访问权限
-    Future<bool> checkAIAccess() async {
+  // 检查 AI 访问权限 (保持不变，但添加了详细日志)
+  Future<bool> checkAIAccess() async {
     final token = await getToken();
     if (token == null) {
       return false; // 未登录，没有权限
@@ -340,8 +340,48 @@ class ApiService {
       return data['has_access'] ?? false; // 从服务器响应中获取 has_access 字段
     } else {
       // 处理错误，例如服务器不可用或返回错误状态码
-      print('检查 AI 权限失败: ${response.statusCode}');
       return false; // 假设出错时没有权限
     }
+  }
+
+// AI 文本生成 (修改为返回 StreamedResponse)
+  Future<http.StreamedResponse> generateText({
+    required String model,
+    required List<Map<String, dynamic>> messages,
+    required bool stream,
+    required String mode,
+  }) async {
+    final token = await getToken();
+    if (token == null) {
+      throw Exception('未登录');
+    }
+
+    final url = Uri.parse('$baseUrl/generate_text');
+    final request = http.Request('POST', url);
+
+    request.headers.addAll({
+      'Content-Type': 'application/json',
+      'Authorization': 'Bearer $token',
+    });
+
+    request.body = jsonEncode({
+      'model': model,
+      'messages': messages,
+      'stream': stream,
+      'mode': mode,
+    });
+
+
+    final response = await request.send();
+
+
+    if (response.statusCode != 200) {
+        //读取错误信息
+        final errorBody = await response.stream.bytesToString();
+      throw Exception(
+          'AI 生成失败: ${response.statusCode}');
+    }
+
+    return response;
   }
 }
