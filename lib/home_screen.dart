@@ -9,7 +9,6 @@ import 'models.dart';
 import 'send_letter_screen.dart';
 import 'received_letter_screen.dart';
 import 'sent_letters_screen.dart';
-import 'settings_screen.dart';
 import 'global_appbar.dart';
 
 // 常量

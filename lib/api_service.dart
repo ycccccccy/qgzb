@@ -376,8 +376,6 @@ class ApiService {
 
 
     if (response.statusCode != 200) {
-        //读取错误信息
-        final errorBody = await response.stream.bytesToString();
       throw Exception(
           'AI 生成失败: ${response.statusCode}');
     }

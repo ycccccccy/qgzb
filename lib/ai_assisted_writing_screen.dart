@@ -444,10 +444,7 @@ Future<void> _processStreamedResponse(http.StreamedResponse streamedResponse) as
                       padding: const EdgeInsets.only(top: 0, bottom: 4.0),
                       child: Row(
                         children: [
-                          CustomPaint(
-                            painter: BrainIconPainter(color: Colors.grey.shade700),
-                            size: const Size(16, 16), //  控制图标大小
-                          ),
+                          BrainIconWithText(), //  使用灰色
                           const SizedBox(width: 4),
                           Text("已深度思考", style: titleTextStyle),
                           const SizedBox(width: 4),
