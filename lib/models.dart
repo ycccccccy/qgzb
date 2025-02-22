@@ -5,7 +5,7 @@ class User {
   final String className;
   final String studentId;
   final String name;
-  final String salt;
+  final String? salt;
   final String password;
 
   User({
@@ -23,7 +23,7 @@ class User {
       className: json['class_name'],
       studentId: json['student_id'],
       name: json['name'],
-      salt: json['salt'],
+      salt: json['salt'] ?? '', // 处理 null
       password: json['password'],
     );
   }

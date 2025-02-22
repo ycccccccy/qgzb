@@ -193,90 +193,94 @@ class _LoginScreenState extends State<LoginScreen>
   }
 
   Future<void> _login() async {
-    if (_isLoading) return;
-    setState(() => _isLoading = true);
+  if (_isLoading) return;
+  setState(() => _isLoading = true);
 
-    try {
-      final email = _emailController.text.trim();
-      final password = _passwordController.text;
+  try {
+    final email = _emailController.text.trim();
+    final password = _passwordController.text;
 
-      final loginResult = await _apiService.login(email, password);
+    final loginResult = await _apiService.login(email, password);
 
-      final userId = loginResult['userId'];
-      await _prefs.setString(_currentUserIdKey, userId.toString());
+    final userId = loginResult['userId'];
+    await _prefs.setString(_currentUserIdKey, userId.toString());
 
-      final userData = await _fetchUserData(userId.toString());
-      if (userData != null) {
-        _selectedSchool = userData['school'] as String?;
-        _selectedGrade = userData['grade'] as String?;
-        _selectedClass = userData['class_number'] as int?;
-        _rememberedId = userData['student_id'] as String?;
-        _rememberedName = userData['name'] as String?;
-        _salt = userData['salt'] as String?;
-        _password = userData['password'] as String?;
+    final userData = await _fetchUserData(userId.toString());
 
-        if (_rememberMe) {
-          await _saveRememberMe();
-        }
-        if (_autoLogin) {
-          await _prefs.setBool(_autoLoginKey, true);
-        }
+    if (userData != null) {
+      // 使用空值合并运算符 ?? 提供默认值，并进行类型转换
+      _selectedSchool = userData['school'] as String? ?? '';
+      _selectedGrade = userData['grade'] as String? ?? '';
+      _selectedClass = userData['class_number'] as int? ?? 0;
+      _rememberedId = userData['student_id'] as String? ?? '';
+      _rememberedName = userData['name'] as String? ?? '';
+      _salt = userData['salt'] as String? ?? '';
+      _password = userData['password'] as String? ?? '';
 
-        if (mounted) {
-          Navigator.pushReplacement(
-            context,
-            MaterialPageRoute(builder: (_) => const HomeScreenMain()),
-          );
-        }
-      } else {
-        if (mounted) {
-          _showErrorSnackBar("获取用户信息失败, 请联系管理员");
-        }
+      if (_rememberMe) {
+        await _saveRememberMe();
       }
-    } catch (e) {
-      if (mounted) {
-        setState(() {
-          _loginError = e.toString();
-        });
+      if (_autoLogin) {
+        await _prefs.setBool(_autoLoginKey, true);
       }
-    } finally {
+
       if (mounted) {
-        setState(() => _isLoading = false);
+        Navigator.pushReplacement(
+          context,
+          MaterialPageRoute(builder: (_) => const HomeScreenMain()),
+        );
+      }
+    } else {
+      if (mounted) {
+         _showErrorSnackBar("获取用户信息失败, 请联系管理员");
       }
     }
-  }
-
-  Future<Map<String, dynamic>?> _fetchUserData(String userId) async {
-    try {
-      final user = await _apiService.getUserInfo(int.parse(userId));
-
-      String className = user.className;
-      String? grade;
-      int? classNumber;
-
-      final gradeMatch = RegExp(r'(高[一二三]|初[一二三])').firstMatch(className);
-      if (gradeMatch != null) {
-        grade = gradeMatch.group(0);
-      }
-
-      final classMatch = RegExp(r'(\d+)').firstMatch(className);
-      if (classMatch != null) {
-        classNumber = int.tryParse(classMatch.group(0)!);
-      }
-
-      return {
-        'school': user.school,
-        'grade': grade,
-        'class_number': classNumber,
-        'student_id': user.studentId,
-        'name': user.name,
-        'salt': user.salt,
-        'password': user.password,
-      };
-    } catch (e) {
-      return null;
+  } catch (e) {
+    if (mounted) {
+      setState(() {
+        _loginError = e.toString();
+      });
+    }
+  } finally {
+    if (mounted) {
+      setState(() => _isLoading = false);
     }
   }
+}
+
+Future<Map<String, dynamic>?> _fetchUserData(String userId) async {
+  try {
+    final user = await _apiService.getUserInfo(int.parse(userId));
+
+    // 直接从 User 对象获取属性，注意 User 类中的字段名
+    String className = user.className;
+    String? grade;
+    int? classNumber;
+
+    final gradeMatch = RegExp(r'(高[一二三]|初[一二三])').firstMatch(className);
+    if (gradeMatch != null) {
+      grade = gradeMatch.group(0);
+    }
+
+    final classMatch = RegExp(r'(\d+)').firstMatch(className);
+    if (classMatch != null) {
+      classNumber = int.tryParse(classMatch.group(0)!);
+    }
+
+    return {
+      'school': user.school,
+      'grade': grade,
+      'class_number': classNumber,
+      'student_id': user.studentId,
+      'name': user.name,
+      'salt': user.salt,
+      'password': user.password,
+    };
+  } catch (e) {
+    print('获取用户信息失败: $e'); // 改进错误日志
+    return null;
+  }
+}
 
   void _showErrorSnackBar(String message) {
     if (mounted) {

@@ -8,7 +8,7 @@ import 'package:flutter_markdown/flutter_markdown.dart';
 import 'global_appbar.dart';
 import 'api_service.dart';
 import 'package:intl/intl.dart';
-import 'brain_icon_painter.dart';
+import 'package:flutter_svg/flutter_svg.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 // 应用主题
@@ -444,7 +444,12 @@ Future<void> _processStreamedResponse(http.StreamedResponse streamedResponse) as
                       padding: const EdgeInsets.only(top: 0, bottom: 4.0),
                       child: Row(
                         children: [
-                          BrainIconWithText(), //  使用灰色
+                          SvgPicture.asset(
+                            'assets/images/brain.svg',
+                            colorFilter: ColorFilter.mode(Colors.grey.shade700, BlendMode.srcIn),
+                            width: 16, 
+                            height: 16, 
+                          ),
                           const SizedBox(width: 4),
                           Text("已深度思考", style: titleTextStyle),
                           const SizedBox(width: 4),
