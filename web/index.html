@@ -19,8 +19,25 @@
 
   <title>鸿雁心笺</title>
   <link rel="manifest" href="manifest.json">
+  <style>
+    body {
+      margin: 0;
+      padding: 0;
+      display: flex;
+      flex-direction: column;
+      min-height: 100vh;
+    }
+    
+    #flutter-content {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+    }
+  </style>
 </head>
 <body>
-  <script src="flutter_bootstrap.js" async></script>
+  <div id="flutter-content">
+    <script src="flutter_bootstrap.js" async></script>
+  </div>
 </body>
 </html>
